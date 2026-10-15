@@ -1,0 +1,80 @@
+# Infrastructure locale du pipeline.
+#   docker compose up -d                  -> MinIO + PostgreSQL (+ création du bucket)
+#   docker compose run --rm app <cmd>     -> conteneur Python 3.11 / Java 17 / PySpark
+# Les identifiants viennent de .env (voir .env.example), jamais écrits en dur ici.
+
+name: jobmarket
+
+services:
+  minio:
+    # Les images officielles minio/minio ne sont plus publiées : on utilise le fork
+    # communautaire pgsty/minio (même code AGPL, même API S3), version figée.
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?définir MINIO_ROOT_USER dans .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?définir MINIO_ROOT_PASSWORD dans .env}
+    ports: ["9000:9000", "9001:9001"]
+    volumes: ["minio_data:/data"]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Job one-shot : crée le bucket au démarrage (idempotent grâce à --ignore-existing).
+  minio-init:
+    image: pgsty/mc:RELEASE.2026-09-16T00-00-00Z
+    depends_on:
+      minio: { condition: service_healthy }
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET:-jobmarket}
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD &&
+      mc mb --ignore-existing local/$$MINIO_BUCKET &&
+      echo 'bucket prêt : '$$MINIO_BUCKET
+      "
+    restart: "no"
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?définir POSTGRES_USER dans .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?définir POSTGRES_PASSWORD dans .env}
+      POSTGRES_DB: ${POSTGRES_DB:-jobmarket}
+    ports: ["5432:5432"]
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB:-jobmarket}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Environnement d'exécution des jobs (Spark tourne ici, pas sous Windows).
+  # Profil "tools" : non démarré par `docker compose up`, lancé à la demande.
+  app:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+    image: jobmarket-app:dev
+    profiles: ["tools"]
+    env_file: .env
+    environment:
+      # Dans le réseau Docker, les services se joignent par leur nom.
+      MINIO_ENDPOINT: http://minio:9000
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+    volumes: [".:/app"]
+    working_dir: /app
+    depends_on:
+      minio: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+
+volumes:
+  minio_data:
+  pg_data:

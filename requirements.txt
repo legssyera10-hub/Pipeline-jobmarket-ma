@@ -1,0 +1,18 @@
+# Dépendances d'exécution — versions figées pour des builds reproductibles.
+# Python 3.11 (cible de l'image docker/app.Dockerfile).
+pyspark==3.5.3
+pandas==2.2.3
+pyarrow==17.0.0
+s3fs[boto3]==2024.10.0
+requests==2.32.3
+beautifulsoup4==4.12.3
+lxml==5.3.0
+tenacity==9.0.0
+# robots.txt : parseur de Scrapy (gère les jokers, contrairement à urllib.robotparser)
+protego==0.7.0
+python-dotenv==1.0.1
+pydantic==2.9.2
+psycopg2-binary==2.9.10
+PyYAML==6.0.2
+# Validation de la qualité (jour 5) : API 1.x, testée avec PySpark 3.5 / numpy 2
+great_expectations==1.24.0

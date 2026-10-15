@@ -1,0 +1,190 @@
+== Physical Plan ==
+AdaptiveSparkPlan (32)
++- Project (31)
+   +- Project (30)
+      +- Filter (29)
+         +- Window (28)
+            +- Sort (27)
+               +- Exchange (26)
+                  +- Project (25)
+                     +- Filter (24)
+                        +- InMemoryTableScan (1)
+                              +- InMemoryRelation (2)
+                                    +- AdaptiveSparkPlan (23)
+                                       +- Project (22)
+                                          +- Filter (21)
+                                             +- Window (20)
+                                                +- WindowGroupLimit (19)
+                                                   +- Sort (18)
+                                                      +- Exchange (17)
+                                                         +- WindowGroupLimit (16)
+                                                            +- Sort (15)
+                                                               +- Project (14)
+                                                                  +- BroadcastHashJoin LeftOuter BuildRight (13)
+                                                                     :- Project (10)
+                                                                     :  +- BroadcastHashJoin LeftOuter BuildRight (9)
+                                                                     :     :- Project (6)
+                                                                     :     :  +- ArrowEvalPython (5)
+                                                                     :     :     +- Project (4)
+                                                                     :     :        +- Scan parquet  (3)
+                                                                     :     +- BroadcastExchange (8)
+                                                                     :        +- LocalTableScan (7)
+                                                                     +- BroadcastExchange (12)
+                                                                        +- LocalTableScan (11)
+
+
+(1) InMemoryTableScan
+Output [35]: [_anomalies#686, _ingested_at#31, _motifs_rejet#650, date_collecte#532, date_derniere_publication#534, date_expiration#535, date_publication#533, description#3, devise#544, entreprise#537, entreprise_normalisee#126, etat_code#71, etat_nom#72, experience_max_annees#131, experience_min_annees#130, famille_poste#125, hash_contenu#547, id_source#531, lieu_brut#538, niveau_experience#541, offre_id#529, pays#129, region#73, salaire_max_annuel#543, salaire_min_annuel#542, salaire_normalise_source#546, salaire_periode_source#545, source#530, technologies#132, teletravail#540, titre_brut#536, titre_normalise#124, type_contrat#539, url#123, ville_normalisee#320]
+Arguments: [_anomalies#686, _ingested_at#31, _motifs_rejet#650, date_collecte#532, date_derniere_publication#534, date_expiration#535, date_publication#533, description#3, devise#544, entreprise#537, entreprise_normalisee#126, etat_code#71, etat_nom#72, experience_max_annees#131, experience_min_annees#130, famille_poste#125, hash_contenu#547, id_source#531, lieu_brut#538, niveau_experience#541, offre_id#529, pays#129, region#73, salaire_max_annuel#543, ... 11 more fields], [(size(_motifs_rejet#650, true) <= 0)]
+
+(2) InMemoryRelation
+Arguments: [offre_id#529, source#530, id_source#531, url#123, date_collecte#532, date_publication#533, date_derniere_publication#534, date_expiration#535, titre_brut#536, titre_normalise#124, famille_poste#125, entreprise#537, entreprise_normalisee#126, lieu_brut#538, ville_normalisee#320, etat_code#71, etat_nom#72, region#73, pays#129, type_contrat#539, teletravail#540, niveau_experience#541, experience_min_annees#130, experience_max_annees#131, ... 11 more fields], CachedRDDBuilder(org.apache.spark.sql.execution.columnar.DefaultCachedBatchSerializer@6e82614c,StorageLevel(disk, 1 replicas),AdaptiveSparkPlan isFinalPlan=false
++- Project [offre_id#529, source#530, id_source#531, url#123, date_collecte#532, date_publication#533, date_derniere_publication#534, date_expiration#535, titre_brut#536, titre_normalise#124, famille_poste#125, entreprise#537, entreprise_normalisee#126, lieu_brut#538, ville_normalisee#320, etat_code#71, etat_nom#72, region#73, pays#129, type_contrat#539, teletravail#540, niveau_experience#541, experience_min_annees#130, experience_max_annees#131, ... 11 more fields]
+   +- Filter (_rn#582 = 1)
+      +- Window [row_number() windowspecdefinition(offre_id#529, date_collecte#532 ASC NULLS FIRST, _ingested_at#31 ASC NULLS FIRST, specifiedwindowframe(RowFrame, unboundedpreceding$(), currentrow$())) AS _rn#582], [offre_id#529], [date_collecte#532 ASC NULLS FIRST, _ingested_at#31 ASC NULLS FIRST]
+         +- WindowGroupLimit [offre_id#529], [date_collecte#532 ASC NULLS FIRST, _ingested_at#31 ASC NULLS FIRST], row_number(), 1, Final
+            +- Sort [offre_id#529 ASC NULLS FIRST, date_collecte#532 ASC NULLS FIRST, _ingested_at#31 ASC NULLS FIRST], false, 0
+               +- Exchange hashpartitioning(offre_id#529, 8), ENSURE_REQUIREMENTS, [plan_id=68]
+                  +- WindowGroupLimit [offre_id#529], [date_collecte#532 ASC NULLS FIRST, _ingested_at#31 ASC NULLS FIRST], row_number(), 1, Partial
+                     +- Sort [offre_id#529 ASC NULLS FIRST, date_collecte#532 ASC NULLS FIRST, _ingested_at#31 ASC NULLS FIRST], false, 0
+                        +- Project [sha2(cast(concat_ws(|, _source#32, coalesce(url#123, job_id#0)) as binary), 256) AS offre_id#529, _source#32 AS source#530, job_id#0 AS id_source#531, url#123, _run_date#33 AS date_collecte#532, cast(timestamp_millis(cast(cast(original_listed_time#13 as double) as bigint)) as date) AS date_publication#533, cast(timestamp_millis(cast(cast(listed_time#22 as double) as bigint)) as date) AS date_derniere_publication#534, cast(timestamp_millis(cast(cast(expiry#18 as double) as bigint)) as date) AS date_expiration#535, title#2 AS titre_brut#536, titre_normalise#124, famille_poste#125, company_name#1 AS entreprise#537, entreprise_normalisee#126, location#6 AS lieu_brut#538, ville_normalisee#320, etat_code#71, etat_nom#72, region#73, pays#129, CASE WHEN upper(work_type#25) IN (FULL_TIME,PART_TIME,CONTRACT,TEMPORARY,INTERNSHIP,VOLUNTEER) THEN upper(work_type#25) WHEN isnotnull(work_type#25) THEN AUTRE END AS type_contrat#539, CASE WHEN Contains(lower(title#2), hybrid) THEN HYBRIDE WHEN ((cast(remote_allowed#14 as double) = 1.0) OR Contains(lower(title#2), remote)) THEN TELETRAVAIL ELSE NON_PRECISE END AS teletravail#540, map(keys: [Internship,Entry level,Associate,Mid-Senior level,Director,Executive], values: [STAGE,DEBUTANT,ASSOCIE,CONFIRME,DIRECTEUR,DIRIGEANT])[formatted_experience_level#20] AS niveau_experience#541, experience_min_annees#130, experience_max_annees#131, ... 9 more fields]
+                           +- BroadcastHashJoin [_etat_cle#370], [_cle#74], LeftOuter, BuildRight, false
+                              :- Project [job_id#0, company_name#1, title#2, description#3, max_salary#4, pay_period#5, location#6, med_salary#9, min_salary#10, original_listed_time#13, remote_allowed#14, expiry#18, formatted_experience_level#20, listed_time#22, work_type#25, currency#26, normalized_salary#28, _ingested_at#31, _source#32, _run_date#33, url#123, titre_normalise#124, famille_poste#125, entreprise_normalisee#126, ... 6 more fields]
+                              :  +- BroadcastHashJoin [trim(location#6, None)], [lieu_brut#79], LeftOuter, BuildRight, false
+                              :     :- Project [job_id#0, company_name#1, title#2, description#3, max_salary#4, pay_period#5, location#6, med_salary#9, min_salary#10, original_listed_time#13, remote_allowed#14, expiry#18, formatted_experience_level#20, listed_time#22, work_type#25, currency#26, normalized_salary#28, _ingested_at#31, _source#32, _run_date#33, pythonUDF0#723.url AS url#123, pythonUDF0#723.titre_normalise AS titre_normalise#124, pythonUDF0#723.famille_poste AS famille_poste#125, pythonUDF0#723.entreprise_normalisee AS entreprise_normalisee#126, ... 6 more fields]
+                              :     :  +- ArrowEvalPython [_enrich_udf(job_posting_url#15, title#2, company_name#1, location#6, description#3, skills_desc#21)#85], [pythonUDF0#723], 200
+                              :     :     +- Project [job_id#0, company_name#1, title#2, description#3, max_salary#4, pay_period#5, location#6, med_salary#9, min_salary#10, original_listed_time#13, remote_allowed#14, job_posting_url#15, expiry#18, formatted_experience_level#20, skills_desc#21, listed_time#22, work_type#25, currency#26, normalized_salary#28, _ingested_at#31, _source#32, _run_date#33]
+                              :     :        +- FileScan parquet [job_id#0,company_name#1,title#2,description#3,max_salary#4,pay_period#5,location#6,med_salary#9,min_salary#10,original_listed_time#13,remote_allowed#14,job_posting_url#15,expiry#18,formatted_experience_level#20,skills_desc#21,listed_time#22,work_type#25,currency#26,normalized_salary#28,_ingested_at#31,_source#32,_run_date#33,date#34] Batched: true, DataFilters: [], Format: Parquet, Location: InMemoryFileIndex(1 paths)[s3a://jobmarket/bronze/source=kaggle_linkedin], PartitionFilters: [isnotnull(date#34), (date#34 >= 2023-11-05), (date#34 <= 2024-04-20)], PushedFilters: [], ReadSchema: struct<job_id:string,company_name:string,title:string,description:string,max_salary:string,pay_pe...
+                              :     +- BroadcastExchange HashedRelationBroadcastMode(List(input[0, string, true]),false), [plan_id=57]
+                              :        +- LocalTableScan [lieu_brut#79, _metro_ville#80, _metro_etat#81]
+                              +- BroadcastExchange HashedRelationBroadcastMode(List(input[3, string, true]),false), [plan_id=61]
+                                 +- LocalTableScan [etat_code#71, etat_nom#72, region#73, _cle#74]
+,None)
+
+(3) Scan parquet 
+Output [23]: [job_id#0, company_name#1, title#2, description#3, max_salary#4, pay_period#5, location#6, med_salary#9, min_salary#10, original_listed_time#13, remote_allowed#14, job_posting_url#15, expiry#18, formatted_experience_level#20, skills_desc#21, listed_time#22, work_type#25, currency#26, normalized_salary#28, _ingested_at#31, _source#32, _run_date#33, date#34]
+Batched: true
+Location: InMemoryFileIndex [s3a://jobmarket/bronze/source=kaggle_linkedin]
+PartitionFilters: [isnotnull(date#34), (date#34 >= 2023-11-05), (date#34 <= 2024-04-20)]
+ReadSchema: struct<job_id:string,company_name:string,title:string,description:string,max_salary:string,pay_period:string,location:string,med_salary:string,min_salary:string,original_listed_time:string,remote_allowed:string,job_posting_url:string,expiry:string,formatted_experience_level:string,skills_desc:string,listed_time:string,work_type:string,currency:string,normalized_salary:string,_ingested_at:timestamp,_source:string,_run_date:date>
+
+(4) Project
+Output [22]: [job_id#0, company_name#1, title#2, description#3, max_salary#4, pay_period#5, location#6, med_salary#9, min_salary#10, original_listed_time#13, remote_allowed#14, job_posting_url#15, expiry#18, formatted_experience_level#20, skills_desc#21, listed_time#22, work_type#25, currency#26, normalized_salary#28, _ingested_at#31, _source#32, _run_date#33]
+Input [23]: [job_id#0, company_name#1, title#2, description#3, max_salary#4, pay_period#5, location#6, med_salary#9, min_salary#10, original_listed_time#13, remote_allowed#14, job_posting_url#15, expiry#18, formatted_experience_level#20, skills_desc#21, listed_time#22, work_type#25, currency#26, normalized_salary#28, _ingested_at#31, _source#32, _run_date#33, date#34]
+
+(5) ArrowEvalPython
+Input [22]: [job_id#0, company_name#1, title#2, description#3, max_salary#4, pay_period#5, location#6, med_salary#9, min_salary#10, original_listed_time#13, remote_allowed#14, job_posting_url#15, expiry#18, formatted_experience_level#20, skills_desc#21, listed_time#22, work_type#25, currency#26, normalized_salary#28, _ingested_at#31, _source#32, _run_date#33]
+Arguments: [_enrich_udf(job_posting_url#15, title#2, company_name#1, location#6, description#3, skills_desc#21)#85], [pythonUDF0#723], 200
+
+(6) Project
+Output [30]: [job_id#0, company_name#1, title#2, description#3, max_salary#4, pay_period#5, location#6, med_salary#9, min_salary#10, original_listed_time#13, remote_allowed#14, expiry#18, formatted_experience_level#20, listed_time#22, work_type#25, currency#26, normalized_salary#28, _ingested_at#31, _source#32, _run_date#33, pythonUDF0#723.url AS url#123, pythonUDF0#723.titre_normalise AS titre_normalise#124, pythonUDF0#723.famille_poste AS famille_poste#125, pythonUDF0#723.entreprise_normalisee AS entreprise_normalisee#126, pythonUDF0#723.ville_parsee AS ville_parsee#127, pythonUDF0#723.etat_brut AS etat_brut#128, pythonUDF0#723.pays AS pays#129, pythonUDF0#723.experience_min_annees AS experience_min_annees#130, pythonUDF0#723.experience_max_annees AS experience_max_annees#131, pythonUDF0#723.technologies AS technologies#132]
+Input [23]: [job_id#0, company_name#1, title#2, description#3, max_salary#4, pay_period#5, location#6, med_salary#9, min_salary#10, original_listed_time#13, remote_allowed#14, job_posting_url#15, expiry#18, formatted_experience_level#20, skills_desc#21, listed_time#22, work_type#25, currency#26, normalized_salary#28, _ingested_at#31, _source#32, _run_date#33, pythonUDF0#723]
+
+(7) LocalTableScan
+Output [3]: [lieu_brut#79, _metro_ville#80, _metro_etat#81]
+Arguments: [lieu_brut#79, _metro_ville#80, _metro_etat#81]
+
+(8) BroadcastExchange
+Input [3]: [lieu_brut#79, _metro_ville#80, _metro_etat#81]
+Arguments: HashedRelationBroadcastMode(List(input[0, string, true]),false), [plan_id=57]
+
+(9) BroadcastHashJoin
+Left keys [1]: [trim(location#6, None)]
+Right keys [1]: [lieu_brut#79]
+Join type: LeftOuter
+Join condition: None
+
+(10) Project
+Output [30]: [job_id#0, company_name#1, title#2, description#3, max_salary#4, pay_period#5, location#6, med_salary#9, min_salary#10, original_listed_time#13, remote_allowed#14, expiry#18, formatted_experience_level#20, listed_time#22, work_type#25, currency#26, normalized_salary#28, _ingested_at#31, _source#32, _run_date#33, url#123, titre_normalise#124, famille_poste#125, entreprise_normalisee#126, pays#129, experience_min_annees#130, experience_max_annees#131, technologies#132, coalesce(_metro_ville#80, ville_parsee#127) AS ville_normalisee#320, upper(coalesce(_metro_etat#81, etat_brut#128)) AS _etat_cle#370]
+Input [33]: [job_id#0, company_name#1, title#2, description#3, max_salary#4, pay_period#5, location#6, med_salary#9, min_salary#10, original_listed_time#13, remote_allowed#14, expiry#18, formatted_experience_level#20, listed_time#22, work_type#25, currency#26, normalized_salary#28, _ingested_at#31, _source#32, _run_date#33, url#123, titre_normalise#124, famille_poste#125, entreprise_normalisee#126, ville_parsee#127, etat_brut#128, pays#129, experience_min_annees#130, experience_max_annees#131, technologies#132, lieu_brut#79, _metro_ville#80, _metro_etat#81]
+
+(11) LocalTableScan
+Output [4]: [etat_code#71, etat_nom#72, region#73, _cle#74]
+Arguments: [etat_code#71, etat_nom#72, region#73, _cle#74]
+
+(12) BroadcastExchange
+Input [4]: [etat_code#71, etat_nom#72, region#73, _cle#74]
+Arguments: HashedRelationBroadcastMode(List(input[3, string, true]),false), [plan_id=61]
+
+(13) BroadcastHashJoin
+Left keys [1]: [_etat_cle#370]
+Right keys [1]: [_cle#74]
+Join type: LeftOuter
+Join condition: None
+
+(14) Project
+Output [33]: [sha2(cast(concat_ws(|, _source#32, coalesce(url#123, job_id#0)) as binary), 256) AS offre_id#529, _source#32 AS source#530, job_id#0 AS id_source#531, url#123, _run_date#33 AS date_collecte#532, cast(timestamp_millis(cast(cast(original_listed_time#13 as double) as bigint)) as date) AS date_publication#533, cast(timestamp_millis(cast(cast(listed_time#22 as double) as bigint)) as date) AS date_derniere_publication#534, cast(timestamp_millis(cast(cast(expiry#18 as double) as bigint)) as date) AS date_expiration#535, title#2 AS titre_brut#536, titre_normalise#124, famille_poste#125, company_name#1 AS entreprise#537, entreprise_normalisee#126, location#6 AS lieu_brut#538, ville_normalisee#320, etat_code#71, etat_nom#72, region#73, pays#129, CASE WHEN upper(work_type#25) IN (FULL_TIME,PART_TIME,CONTRACT,TEMPORARY,INTERNSHIP,VOLUNTEER) THEN upper(work_type#25) WHEN isnotnull(work_type#25) THEN AUTRE END AS type_contrat#539, CASE WHEN Contains(lower(title#2), hybrid) THEN HYBRIDE WHEN ((cast(remote_allowed#14 as double) = 1.0) OR Contains(lower(title#2), remote)) THEN TELETRAVAIL ELSE NON_PRECISE END AS teletravail#540, map(keys: [Internship,Entry level,Associate,Mid-Senior level,Director,Executive], values: [STAGE,DEBUTANT,ASSOCIE,CONFIRME,DIRECTEUR,DIRIGEANT])[formatted_experience_level#20] AS niveau_experience#541, experience_min_annees#130, experience_max_annees#131, cast(round((cast(coalesce(min_salary#10, med_salary#9) as double) * cast(map(keys: [YEARLY,MONTHLY,BIWEEKLY,WEEKLY,HOURLY], values: [1,12,26,52,2080])[upper(pay_period#5)] as double)), 0) as int) AS salaire_min_annuel#542, cast(round((cast(coalesce(max_salary#4, med_salary#9) as double) * cast(map(keys: [YEARLY,MONTHLY,BIWEEKLY,WEEKLY,HOURLY], values: [1,12,26,52,2080])[upper(pay_period#5)] as double)), 0) as int) AS salaire_max_annuel#543, upper(currency#26) AS devise#544, upper(pay_period#5) AS salaire_periode_source#545, cast(normalized_salary#28 as double) AS salaire_normalise_source#546, technologies#132, description#3, sha2(cast(concat_ws(|, titre_normalise#124, entreprise_normalisee#126, lower(ville_normalisee#320), regexp_replace(lower(description#3), \s+,  , 1)) as binary), 256) AS hash_contenu#547, _ingested_at#31]
+Input [34]: [job_id#0, company_name#1, title#2, description#3, max_salary#4, pay_period#5, location#6, med_salary#9, min_salary#10, original_listed_time#13, remote_allowed#14, expiry#18, formatted_experience_level#20, listed_time#22, work_type#25, currency#26, normalized_salary#28, _ingested_at#31, _source#32, _run_date#33, url#123, titre_normalise#124, famille_poste#125, entreprise_normalisee#126, pays#129, experience_min_annees#130, experience_max_annees#131, technologies#132, ville_normalisee#320, _etat_cle#370, etat_code#71, etat_nom#72, region#73, _cle#74]
+
+(15) Sort
+Input [33]: [offre_id#529, source#530, id_source#531, url#123, date_collecte#532, date_publication#533, date_derniere_publication#534, date_expiration#535, titre_brut#536, titre_normalise#124, famille_poste#125, entreprise#537, entreprise_normalisee#126, lieu_brut#538, ville_normalisee#320, etat_code#71, etat_nom#72, region#73, pays#129, type_contrat#539, teletravail#540, niveau_experience#541, experience_min_annees#130, experience_max_annees#131, salaire_min_annuel#542, salaire_max_annuel#543, devise#544, salaire_periode_source#545, salaire_normalise_source#546, technologies#132, description#3, hash_contenu#547, _ingested_at#31]
+Arguments: [offre_id#529 ASC NULLS FIRST, date_collecte#532 ASC NULLS FIRST, _ingested_at#31 ASC NULLS FIRST], false, 0
+
+(16) WindowGroupLimit
+Input [33]: [offre_id#529, source#530, id_source#531, url#123, date_collecte#532, date_publication#533, date_derniere_publication#534, date_expiration#535, titre_brut#536, titre_normalise#124, famille_poste#125, entreprise#537, entreprise_normalisee#126, lieu_brut#538, ville_normalisee#320, etat_code#71, etat_nom#72, region#73, pays#129, type_contrat#539, teletravail#540, niveau_experience#541, experience_min_annees#130, experience_max_annees#131, salaire_min_annuel#542, salaire_max_annuel#543, devise#544, salaire_periode_source#545, salaire_normalise_source#546, technologies#132, description#3, hash_contenu#547, _ingested_at#31]
+Arguments: [offre_id#529], [date_collecte#532 ASC NULLS FIRST, _ingested_at#31 ASC NULLS FIRST], row_number(), 1, Partial
+
+(17) Exchange
+Input [33]: [offre_id#529, source#530, id_source#531, url#123, date_collecte#532, date_publication#533, date_derniere_publication#534, date_expiration#535, titre_brut#536, titre_normalise#124, famille_poste#125, entreprise#537, entreprise_normalisee#126, lieu_brut#538, ville_normalisee#320, etat_code#71, etat_nom#72, region#73, pays#129, type_contrat#539, teletravail#540, niveau_experience#541, experience_min_annees#130, experience_max_annees#131, salaire_min_annuel#542, salaire_max_annuel#543, devise#544, salaire_periode_source#545, salaire_normalise_source#546, technologies#132, description#3, hash_contenu#547, _ingested_at#31]
+Arguments: hashpartitioning(offre_id#529, 8), ENSURE_REQUIREMENTS, [plan_id=68]
+
+(18) Sort
+Input [33]: [offre_id#529, source#530, id_source#531, url#123, date_collecte#532, date_publication#533, date_derniere_publication#534, date_expiration#535, titre_brut#536, titre_normalise#124, famille_poste#125, entreprise#537, entreprise_normalisee#126, lieu_brut#538, ville_normalisee#320, etat_code#71, etat_nom#72, region#73, pays#129, type_contrat#539, teletravail#540, niveau_experience#541, experience_min_annees#130, experience_max_annees#131, salaire_min_annuel#542, salaire_max_annuel#543, devise#544, salaire_periode_source#545, salaire_normalise_source#546, technologies#132, description#3, hash_contenu#547, _ingested_at#31]
+Arguments: [offre_id#529 ASC NULLS FIRST, date_collecte#532 ASC NULLS FIRST, _ingested_at#31 ASC NULLS FIRST], false, 0
+
+(19) WindowGroupLimit
+Input [33]: [offre_id#529, source#530, id_source#531, url#123, date_collecte#532, date_publication#533, date_derniere_publication#534, date_expiration#535, titre_brut#536, titre_normalise#124, famille_poste#125, entreprise#537, entreprise_normalisee#126, lieu_brut#538, ville_normalisee#320, etat_code#71, etat_nom#72, region#73, pays#129, type_contrat#539, teletravail#540, niveau_experience#541, experience_min_annees#130, experience_max_annees#131, salaire_min_annuel#542, salaire_max_annuel#543, devise#544, salaire_periode_source#545, salaire_normalise_source#546, technologies#132, description#3, hash_contenu#547, _ingested_at#31]
+Arguments: [offre_id#529], [date_collecte#532 ASC NULLS FIRST, _ingested_at#31 ASC NULLS FIRST], row_number(), 1, Final
+
+(20) Window
+Input [33]: [offre_id#529, source#530, id_source#531, url#123, date_collecte#532, date_publication#533, date_derniere_publication#534, date_expiration#535, titre_brut#536, titre_normalise#124, famille_poste#125, entreprise#537, entreprise_normalisee#126, lieu_brut#538, ville_normalisee#320, etat_code#71, etat_nom#72, region#73, pays#129, type_contrat#539, teletravail#540, niveau_experience#541, experience_min_annees#130, experience_max_annees#131, salaire_min_annuel#542, salaire_max_annuel#543, devise#544, salaire_periode_source#545, salaire_normalise_source#546, technologies#132, description#3, hash_contenu#547, _ingested_at#31]
+Arguments: [row_number() windowspecdefinition(offre_id#529, date_collecte#532 ASC NULLS FIRST, _ingested_at#31 ASC NULLS FIRST, specifiedwindowframe(RowFrame, unboundedpreceding$(), currentrow$())) AS _rn#582], [offre_id#529], [date_collecte#532 ASC NULLS FIRST, _ingested_at#31 ASC NULLS FIRST]
+
+(21) Filter
+Input [34]: [offre_id#529, source#530, id_source#531, url#123, date_collecte#532, date_publication#533, date_derniere_publication#534, date_expiration#535, titre_brut#536, titre_normalise#124, famille_poste#125, entreprise#537, entreprise_normalisee#126, lieu_brut#538, ville_normalisee#320, etat_code#71, etat_nom#72, region#73, pays#129, type_contrat#539, teletravail#540, niveau_experience#541, experience_min_annees#130, experience_max_annees#131, salaire_min_annuel#542, salaire_max_annuel#543, devise#544, salaire_periode_source#545, salaire_normalise_source#546, technologies#132, description#3, hash_contenu#547, _ingested_at#31, _rn#582]
+Condition : (_rn#582 = 1)
+
+(22) Project
+Output [35]: [offre_id#529, source#530, id_source#531, url#123, date_collecte#532, date_publication#533, date_derniere_publication#534, date_expiration#535, titre_brut#536, titre_normalise#124, famille_poste#125, entreprise#537, entreprise_normalisee#126, lieu_brut#538, ville_normalisee#320, etat_code#71, etat_nom#72, region#73, pays#129, type_contrat#539, teletravail#540, niveau_experience#541, experience_min_annees#130, experience_max_annees#131, salaire_min_annuel#542, salaire_max_annuel#543, devise#544, salaire_periode_source#545, salaire_normalise_source#546, technologies#132, description#3, hash_contenu#547, _ingested_at#31, filter(array(CASE WHEN isnull(offre_id#529) THEN offre_id_manquant END, CASE WHEN isnull(titre_normalise#124) THEN titre_manquant END, CASE WHEN isnull(date_publication#533) THEN date_publication_manquante END, CASE WHEN isnull(date_collecte#532) THEN date_collecte_manquante END, CASE WHEN (date_publication#533 > date_collecte#532) THEN publication_apres_collecte END), lambdafunction(isnotnull(lambda arg#651), lambda arg#651, false)) AS _motifs_rejet#650, filter(array(CASE WHEN (salaire_min_annuel#542 > salaire_max_annuel#543) THEN salaire_min_superieur_max END, CASE WHEN ((salaire_min_annuel#542 < 10000) OR (salaire_max_annuel#543 > 1000000)) THEN salaire_hors_bornes END, CASE WHEN (isnotnull(salaire_min_annuel#542) AND NOT (coalesce(devise#544, ) = USD)) THEN salaire_devise_non_usd END, CASE WHEN (date_expiration#535 < date_publication#533) THEN expiration_avant_publication END, CASE WHEN (experience_min_annees#130 > experience_max_annees#131) THEN experience_min_superieure_max END), lambdafunction(isnotnull(lambda arg#687), lambda arg#687, false)) AS _anomalies#686]
+Input [34]: [offre_id#529, source#530, id_source#531, url#123, date_collecte#532, date_publication#533, date_derniere_publication#534, date_expiration#535, titre_brut#536, titre_normalise#124, famille_poste#125, entreprise#537, entreprise_normalisee#126, lieu_brut#538, ville_normalisee#320, etat_code#71, etat_nom#72, region#73, pays#129, type_contrat#539, teletravail#540, niveau_experience#541, experience_min_annees#130, experience_max_annees#131, salaire_min_annuel#542, salaire_max_annuel#543, devise#544, salaire_periode_source#545, salaire_normalise_source#546, technologies#132, description#3, hash_contenu#547, _ingested_at#31, _rn#582]
+
+(23) AdaptiveSparkPlan
+Output [35]: [offre_id#529, source#530, id_source#531, url#123, date_collecte#532, date_publication#533, date_derniere_publication#534, date_expiration#535, titre_brut#536, titre_normalise#124, famille_poste#125, entreprise#537, entreprise_normalisee#126, lieu_brut#538, ville_normalisee#320, etat_code#71, etat_nom#72, region#73, pays#129, type_contrat#539, teletravail#540, niveau_experience#541, experience_min_annees#130, experience_max_annees#131, salaire_min_annuel#542, salaire_max_annuel#543, devise#544, salaire_periode_source#545, salaire_normalise_source#546, technologies#132, description#3, hash_contenu#547, _ingested_at#31, _motifs_rejet#650, _anomalies#686]
+Arguments: isFinalPlan=false
+
+(24) Filter
+Input [35]: [_anomalies#686, _ingested_at#31, _motifs_rejet#650, date_collecte#532, date_derniere_publication#534, date_expiration#535, date_publication#533, description#3, devise#544, entreprise#537, entreprise_normalisee#126, etat_code#71, etat_nom#72, experience_max_annees#131, experience_min_annees#130, famille_poste#125, hash_contenu#547, id_source#531, lieu_brut#538, niveau_experience#541, offre_id#529, pays#129, region#73, salaire_max_annuel#543, salaire_min_annuel#542, salaire_normalise_source#546, salaire_periode_source#545, source#530, technologies#132, teletravail#540, titre_brut#536, titre_normalise#124, type_contrat#539, url#123, ville_normalisee#320]
+Condition : (size(_motifs_rejet#650, true) <= 0)
+
+(25) Project
+Output [35]: [offre_id#529, source#530, id_source#531, url#123, date_collecte#532, date_publication#533, date_derniere_publication#534, date_expiration#535, titre_brut#536, titre_normalise#124, famille_poste#125, entreprise#537, entreprise_normalisee#126, lieu_brut#538, ville_normalisee#320, etat_code#71, etat_nom#72, region#73, pays#129, type_contrat#539, teletravail#540, niveau_experience#541, experience_min_annees#130, experience_max_annees#131, salaire_min_annuel#542, salaire_max_annuel#543, devise#544, salaire_periode_source#545, salaire_normalise_source#546, technologies#132, description#3, hash_contenu#547, _ingested_at#31, _anomalies#686, coalesce(lower(ville_normalisee#320), ) AS _ville_cle#933]
+Input [35]: [_anomalies#686, _ingested_at#31, _motifs_rejet#650, date_collecte#532, date_derniere_publication#534, date_expiration#535, date_publication#533, description#3, devise#544, entreprise#537, entreprise_normalisee#126, etat_code#71, etat_nom#72, experience_max_annees#131, experience_min_annees#130, famille_poste#125, hash_contenu#547, id_source#531, lieu_brut#538, niveau_experience#541, offre_id#529, pays#129, region#73, salaire_max_annuel#543, salaire_min_annuel#542, salaire_normalise_source#546, salaire_periode_source#545, source#530, technologies#132, teletravail#540, titre_brut#536, titre_normalise#124, type_contrat#539, url#123, ville_normalisee#320]
+
+(26) Exchange
+Input [35]: [offre_id#529, source#530, id_source#531, url#123, date_collecte#532, date_publication#533, date_derniere_publication#534, date_expiration#535, titre_brut#536, titre_normalise#124, famille_poste#125, entreprise#537, entreprise_normalisee#126, lieu_brut#538, ville_normalisee#320, etat_code#71, etat_nom#72, region#73, pays#129, type_contrat#539, teletravail#540, niveau_experience#541, experience_min_annees#130, experience_max_annees#131, salaire_min_annuel#542, salaire_max_annuel#543, devise#544, salaire_periode_source#545, salaire_normalise_source#546, technologies#132, description#3, hash_contenu#547, _ingested_at#31, _anomalies#686, _ville_cle#933]
+Arguments: hashpartitioning(entreprise_normalisee#126, titre_normalise#124, _ville_cle#933, 8), ENSURE_REQUIREMENTS, [plan_id=98]
+
+(27) Sort
+Input [35]: [offre_id#529, source#530, id_source#531, url#123, date_collecte#532, date_publication#533, date_derniere_publication#534, date_expiration#535, titre_brut#536, titre_normalise#124, famille_poste#125, entreprise#537, entreprise_normalisee#126, lieu_brut#538, ville_normalisee#320, etat_code#71, etat_nom#72, region#73, pays#129, type_contrat#539, teletravail#540, niveau_experience#541, experience_min_annees#130, experience_max_annees#131, salaire_min_annuel#542, salaire_max_annuel#543, devise#544, salaire_periode_source#545, salaire_normalise_source#546, technologies#132, description#3, hash_contenu#547, _ingested_at#31, _anomalies#686, _ville_cle#933]
+Arguments: [entreprise_normalisee#126 ASC NULLS FIRST, titre_normalise#124 ASC NULLS FIRST, _ville_cle#933 ASC NULLS FIRST, date_publication#533 ASC NULLS FIRST, offre_id#529 ASC NULLS FIRST], false, 0
+
+(28) Window
+Input [35]: [offre_id#529, source#530, id_source#531, url#123, date_collecte#532, date_publication#533, date_derniere_publication#534, date_expiration#535, titre_brut#536, titre_normalise#124, famille_poste#125, entreprise#537, entreprise_normalisee#126, lieu_brut#538, ville_normalisee#320, etat_code#71, etat_nom#72, region#73, pays#129, type_contrat#539, teletravail#540, niveau_experience#541, experience_min_annees#130, experience_max_annees#131, salaire_min_annuel#542, salaire_max_annuel#543, devise#544, salaire_periode_source#545, salaire_normalise_source#546, technologies#132, description#3, hash_contenu#547, _ingested_at#31, _anomalies#686, _ville_cle#933]
+Arguments: [lag(date_publication#533, -1, null) windowspecdefinition(entreprise_normalisee#126, titre_normalise#124, _ville_cle#933, date_publication#533 ASC NULLS FIRST, offre_id#529 ASC NULLS FIRST, specifiedwindowframe(RowFrame, -1, -1)) AS _we0#970, lag(date_publication#533, -1, null) windowspecdefinition(entreprise_normalisee#126, titre_normalise#124, _ville_cle#933, date_publication#533 ASC NULLS FIRST, offre_id#529 ASC NULLS FIRST, specifiedwindowframe(RowFrame, -1, -1)) AS _we1#971, lag(date_publication#533, -1, null) windowspecdefinition(entreprise_normalisee#126, titre_normalise#124, _ville_cle#933, date_publication#533 ASC NULLS FIRST, offre_id#529 ASC NULLS FIRST, specifiedwindowframe(RowFrame, -1, -1)) AS _we0#1009], [entreprise_normalisee#126, titre_normalise#124, _ville_cle#933], [date_publication#533 ASC NULLS FIRST, offre_id#529 ASC NULLS FIRST]
+
+(29) Filter
+Input [38]: [offre_id#529, source#530, id_source#531, url#123, date_collecte#532, date_publication#533, date_derniere_publication#534, date_expiration#535, titre_brut#536, titre_normalise#124, famille_poste#125, entreprise#537, entreprise_normalisee#126, lieu_brut#538, ville_normalisee#320, etat_code#71, etat_nom#72, region#73, pays#129, type_contrat#539, teletravail#540, niveau_experience#541, experience_min_annees#130, experience_max_annees#131, salaire_min_annuel#542, salaire_max_annuel#543, devise#544, salaire_periode_source#545, salaire_normalise_source#546, technologies#132, description#3, hash_contenu#547, _ingested_at#31, _anomalies#686, _ville_cle#933, _we0#970, _we1#971, _we0#1009]
+Condition : (isnotnull(date_collecte#532) AND ((date_collecte#532 >= 2023-12-05) AND (date_collecte#532 <= 2024-04-20)))
+
+(30) Project
+Output [36]: [offre_id#529, source#530, id_source#531, url#123, date_collecte#532, date_publication#533, date_derniere_publication#534, date_expiration#535, titre_brut#536, titre_normalise#124, famille_poste#125, entreprise#537, entreprise_normalisee#126, lieu_brut#538, ville_normalisee#320, etat_code#71, etat_nom#72, region#73, pays#129, type_contrat#539, teletravail#540, niveau_experience#541, experience_min_annees#130, experience_max_annees#131, salaire_min_annuel#542, salaire_max_annuel#543, devise#544, salaire_periode_source#545, salaire_normalise_source#546, technologies#132, description#3, hash_contenu#547, _ingested_at#31, _anomalies#686, coalesce(((((isnotnull(entreprise_normalisee#126) AND isnotnull(titre_normalise#124)) AND isnotnull(date_publication#533)) AND isnotnull(_we0#970)) AND (datediff(date_publication#533, _we1#971) <= 30)), false) AS est_republication#969, _we0#1009]
+Input [38]: [offre_id#529, source#530, id_source#531, url#123, date_collecte#532, date_publication#533, date_derniere_publication#534, date_expiration#535, titre_brut#536, titre_normalise#124, famille_poste#125, entreprise#537, entreprise_normalisee#126, lieu_brut#538, ville_normalisee#320, etat_code#71, etat_nom#72, region#73, pays#129, type_contrat#539, teletravail#540, niveau_experience#541, experience_min_annees#130, experience_max_annees#131, salaire_min_annuel#542, salaire_max_annuel#543, devise#544, salaire_periode_source#545, salaire_normalise_source#546, technologies#132, description#3, hash_contenu#547, _ingested_at#31, _anomalies#686, _ville_cle#933, _we0#970, _we1#971, _we0#1009]
+
+(31) Project
+Output [36]: [offre_id#529, source#530, id_source#531, url#123, date_collecte#532, date_publication#533, date_derniere_publication#534, date_expiration#535, titre_brut#536, titre_normalise#124, famille_poste#125, entreprise#537, entreprise_normalisee#126, lieu_brut#538, ville_normalisee#320, etat_code#71, etat_nom#72, region#73, pays#129, type_contrat#539, teletravail#540, niveau_experience#541, experience_min_annees#130, experience_max_annees#131, salaire_min_annuel#542, salaire_max_annuel#543, devise#544, salaire_periode_source#545, salaire_normalise_source#546, technologies#132, description#3, hash_contenu#547, _ingested_at#31, _anomalies#686, est_republication#969, CASE WHEN est_republication#969 THEN _we0#1009 END AS date_occurrence_precedente#1008]
+Input [36]: [offre_id#529, source#530, id_source#531, url#123, date_collecte#532, date_publication#533, date_derniere_publication#534, date_expiration#535, titre_brut#536, titre_normalise#124, famille_poste#125, entreprise#537, entreprise_normalisee#126, lieu_brut#538, ville_normalisee#320, etat_code#71, etat_nom#72, region#73, pays#129, type_contrat#539, teletravail#540, niveau_experience#541, experience_min_annees#130, experience_max_annees#131, salaire_min_annuel#542, salaire_max_annuel#543, devise#544, salaire_periode_source#545, salaire_normalise_source#546, technologies#132, description#3, hash_contenu#547, _ingested_at#31, _anomalies#686, est_republication#969, _we0#1009]
+
+(32) AdaptiveSparkPlan
+Output [36]: [offre_id#529, source#530, id_source#531, url#123, date_collecte#532, date_publication#533, date_derniere_publication#534, date_expiration#535, titre_brut#536, titre_normalise#124, famille_poste#125, entreprise#537, entreprise_normalisee#126, lieu_brut#538, ville_normalisee#320, etat_code#71, etat_nom#72, region#73, pays#129, type_contrat#539, teletravail#540, niveau_experience#541, experience_min_annees#130, experience_max_annees#131, salaire_min_annuel#542, salaire_max_annuel#543, devise#544, salaire_periode_source#545, salaire_normalise_source#546, technologies#132, description#3, hash_contenu#547, _ingested_at#31, _anomalies#686, est_republication#969, date_occurrence_precedente#1008]
+Arguments: isFinalPlan=false
+

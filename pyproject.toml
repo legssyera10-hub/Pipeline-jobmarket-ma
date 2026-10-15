@@ -1,0 +1,20 @@
+[project]
+name = "jobmarket-ma"
+version = "0.1.0"
+description = "Pipeline data & ML sur le marché de l'emploi tech marocain"
+requires-python = ">=3.11,<3.12"
+
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["spark: tests qui démarrent une SparkSession locale (Java requis)"]

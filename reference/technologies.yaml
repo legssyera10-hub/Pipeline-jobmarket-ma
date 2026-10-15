@@ -1,0 +1,263 @@
+# Référentiel des technologies : nom canonique -> variantes.
+#
+# Forme courte :   python: [python, python3]
+#   variantes insensibles à la casse, délimitées comme des mots.
+# Forme longue :
+#   excel:
+#     variants: [ms excel]       # variantes insensibles à la casse
+#     variants_cs: [Excel]       # variantes sensibles à la casse ("excel in..." non)
+#     exclude_after: ['\s+(?:in|at)\b']   # regex refusées juste après la variante
+#     strict: true               # pas de détection dans un mot collé ("NoSQL" != sql)
+#     regex: ['...']             # motifs Python bruts, pour les cas sans variante sûre
+#
+# Délimitation (voir src/transform/technologies.py) : la variante ne doit pas être
+# collée à une lettre/chiffre, SAUF transition minuscule->Majuscule, fréquente dans les
+# descriptions dont le HTML a été retiré ("PythonLinux", "experienceSQL").
+
+# --- Langages -----------------------------------------------------------------
+python: [python, python3]
+java:
+  variants: [java]
+  exclude_after: ['\s*script']        # JavaScript n'est pas Java
+javascript: [javascript, ecmascript]
+typescript: [typescript]
+c:
+  # La lettre seule est inexploitable ("Grade C", "C-level") : contextes sûrs seulement
+  regex:
+    - '(?<![A-Za-z0-9_+#./])C(?=\s*/\s*C\+\+)'
+    - '(?i:\b(?:ansi|embedded)\s+c\b(?![+#]))'
+    - '(?i:\bc\s+(?:programming|language)\b)'
+    - '(?<=, )C(?=,)'
+cpp: [c++, cpp]
+csharp: [c#, csharp, c sharp]
+go:
+  variants: [golang]
+  regex:
+    - '(?<=, )Go(?=,| and |/)'
+    - '\bGo\s+(?:programming|language)\b'
+rust:
+  variants_cs: [Rust]                 # "rust" = corrosion dans les offres de maintenance
+scala: [scala]
+kotlin: [kotlin]
+swift:
+  variants: [swiftui]
+  variants_cs: [Swift]                 # "swift response"
+r:
+  # "R&D", "R. Smith" : on n'accepte R que dans une énumération ou suivi d'un contexte
+  regex:
+    - '(?:(?<=, )|(?<=/)|(?<=\band )|(?<=\bor ))R(?![A-Za-z0-9_&''+\-.])'
+    - '(?<![A-Za-z0-9_&''./])R(?=,\s|/| programming| Studio|Studio| and (?:Python|SQL|SAS))'
+    - '\bRStudio\b'
+ruby:
+  variants_cs: [Ruby]
+ruby_on_rails: [ruby on rails]        # pas "rails" : offres ferroviaires
+php: [php]
+perl: [perl]
+matlab: [matlab]
+sas:
+  variants_cs: [SAS]
+vba: [vba]
+bash: [bash, shell scripting, shell script]
+powershell: [powershell]
+cobol: [cobol]
+haskell: [haskell]
+elixir: [elixir]
+lua: [lua]
+dart: [dart]
+julia: [julia language, julialang]
+groovy: [groovy]
+solidity: [solidity]
+abap: [abap]
+
+# --- Bases de données & SQL ---------------------------------------------------
+sql:
+  variants: [sql]
+  strict: true                         # ni NoSQL, ni MySQL, ni PostgreSQL
+pl_sql: [pl/sql, plsql]
+t_sql: [t-sql, tsql, transact-sql]
+nosql: [nosql]
+postgresql: [postgresql, postgres]
+mysql: [mysql]
+sql_server: [sql server, mssql, ms sql]
+oracle: [oracle database, oracle db, oracle]
+sqlite: [sqlite]
+mariadb: [mariadb]
+mongodb: [mongodb, mongo db]
+cassandra:
+  variants: [apache cassandra]         # "Cassandra" seul est aussi un prénom
+  regex: ['(?<=, )Cassandra(?=,| and )']
+redis: [redis]
+elasticsearch: [elasticsearch, elastic search, opensearch]
+dynamodb: [dynamodb]
+cosmosdb: [cosmosdb, cosmos db]
+neo4j: [neo4j]
+teradata: [teradata]
+db2: [db2]
+snowflake: [snowflake]
+redshift: [redshift]
+bigquery: [bigquery, big query]
+azure_synapse: [azure synapse, synapse analytics]
+databricks: [databricks]
+delta_lake: [delta lake]
+apache_iceberg: [apache iceberg]
+clickhouse: [clickhouse]
+duckdb: [duckdb]
+
+# --- Traitement de données / orchestration ------------------------------------
+spark:
+  variants: [pyspark, apache spark, sparksql]
+  variants_cs: [Spark]                 # "spark creativity"
+hadoop: [hadoop, hdfs, mapreduce]
+hive:
+  variants: [hiveql, apache hive]
+  variants_cs: [Hive]                 # "hive" = ruche
+kafka: [kafka]
+flink: [flink]
+apache_beam: [apache beam]
+airflow:
+  variants: [apache airflow]
+  variants_cs: [Airflow]                 # "airflow" = débit d'air (offres HVAC)
+dbt:
+  variants: [data build tool, dbt cloud, dbt core]
+  variants_cs: [dbt]                 # "DBT" = thérapie comportementale dialectique
+nifi: [nifi]
+talend: [talend]
+informatica: [informatica]
+ssis: [ssis]
+ssas: [ssas]
+alteryx: [alteryx]
+fivetran: [fivetran]
+matillion: [matillion]
+aws_glue: [aws glue]
+azure_data_factory: [azure data factory, data factory]
+trino: [trino, presto]
+kinesis: [kinesis]
+rabbitmq: [rabbitmq]
+dagster: [dagster]
+prefect:
+  variants_cs: [Prefect]
+
+# --- BI & visualisation -------------------------------------------------------
+power_bi: [power bi, powerbi, power-bi]
+tableau: [tableau]
+looker: [looker]
+qlik: [qlik, qlikview, qlik sense]
+excel:
+  variants: [ms excel, microsoft excel]
+  variants_cs: [Excel]
+  exclude_after: ['\s+(?:in|at|as|with|and thrive)\b']   # verbe "to excel in"
+microstrategy: [microstrategy]
+cognos: [cognos]
+business_objects: [business objects, businessobjects, sap bo]
+ssrs: [ssrs]
+apache_superset: [apache superset]
+metabase: [metabase]
+grafana: [grafana]
+d3: [d3.js, d3js]
+spss: [spss]
+stata: [stata]
+
+# --- Machine learning & IA ----------------------------------------------------
+tensorflow: [tensorflow]
+pytorch: [pytorch]                    # pas "torch" : chalumeau (offres de soudure)
+keras: [keras]
+scikit_learn: [scikit-learn, scikit learn, sklearn]
+pandas: [pandas]
+numpy: [numpy]
+scipy: [scipy]
+xgboost: [xgboost]
+lightgbm: [lightgbm]
+mlflow: [mlflow]
+hugging_face: [hugging face, huggingface]
+langchain: [langchain]
+openai_api: [openai api, openai]
+spacy: [spacy]
+nltk: [nltk]
+opencv: [opencv]
+jupyter: [jupyter, jupyterlab]
+sagemaker: [sagemaker]
+vertex_ai: [vertex ai]
+azure_ml: [azure machine learning, azure ml]
+kubeflow: [kubeflow]
+matplotlib: [matplotlib]
+plotly: [plotly]
+
+# --- Cloud, DevOps & systèmes -------------------------------------------------
+aws: [aws, amazon web services]
+azure:
+  variants: [microsoft azure]
+  variants_cs: [Azure]
+gcp: [gcp, google cloud platform, google cloud]
+docker: [docker]
+kubernetes: [kubernetes, k8s]
+terraform: [terraform]
+ansible: [ansible]
+jenkins:
+  variants_cs: [Jenkins]
+gitlab: [gitlab]
+github: [github, github actions]
+git:
+  variants: [git]
+  strict: true                         # pas dans "GitHub"/"GitLab" (entrées dédiées)
+openshift: [openshift]
+helm:
+  variants_cs: [Helm]
+prometheus:
+  variants_cs: [Prometheus]
+datadog: [datadog]
+splunk: [splunk]
+linux: [linux, rhel, red hat enterprise linux, ubuntu]
+unix: [unix]
+vmware: [vmware, vsphere]
+aws_lambda: [aws lambda, lambda functions]
+amazon_s3: [amazon s3, aws s3]
+amazon_ec2: [ec2]
+cloudformation: [cloudformation]
+azure_devops: [azure devops]
+jira: [jira]
+confluence:
+  variants_cs: [Confluence]
+servicenow: [servicenow]
+
+# --- Progiciels ---------------------------------------------------------------
+sap:
+  variants: [s/4hana, sap hana]
+  variants_cs: [SAP]
+salesforce: [salesforce, sfdc]
+workday:
+  variants_cs: [Workday]               # "workday" = journée de travail
+dynamics_365: [dynamics 365, microsoft dynamics, dynamics crm]
+netsuite: [netsuite]
+
+# --- Web & mobile -------------------------------------------------------------
+react:
+  variants: [reactjs, react.js]
+  variants_cs: [React]                 # "react quickly"
+react_native: [react native]
+angular:
+  variants: [angularjs]
+  variants_cs: [Angular]
+vue:
+  variants: [vue.js, vuejs]
+  variants_cs: [Vue]                   # "en vue de" (sources francophones)
+node_js: [node.js, nodejs, node js]
+express_js: [express.js, expressjs]
+next_js: [next.js, nextjs]
+django: [django]
+flask:
+  variants_cs: [Flask]                 # "flask" = verrerie de laboratoire
+fastapi: [fastapi]
+spring: [spring boot, spring framework, springboot, spring mvc]
+dotnet: [.net, asp.net, dotnet, .net core]
+html: [html, html5]
+css: [css, css3, sass, scss]
+jquery: [jquery]
+graphql: [graphql]
+rest_api: [rest api, rest apis, restful]
+laravel: [laravel]
+wordpress: [wordpress]
+flutter: [flutter]
+android:
+  variants_cs: [Android]
+ios:
+  variants_cs: [iOS]

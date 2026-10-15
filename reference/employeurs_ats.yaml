@@ -1,0 +1,35 @@
+# Employeurs collectés via les API PUBLIQUES de leurs logiciels de recrutement (ATS).
+# Ces API sont publiées par les employeurs pour diffuser leurs offres ; on n'en garde
+# que les offres situées au Maroc.
+#
+# Plateformes retenues après lecture de leur robots.txt (2026-10-15) :
+#   greenhouse : boards-api.greenhouse.io  -> tout autorisé sauf /embed/
+#   lever      : api.lever.co              -> tout autorisé, Crawl-delay: 1
+# Plateforme EXCLUE :
+#   smartrecruiters : api.smartrecruiters.com -> "User-agent: * / Disallow: /"
+#                     (ex. Devoteam, 51 offres au Maroc : non collecté)
+#
+# Ajouter un employeur : vérifier avec `python -m scripts.sonder_employeurs <slug>`
+# qu'il publie bien des offres au Maroc, puis l'ajouter ici avec la date.
+
+employeurs:
+  - nom: Artefact
+    ats: greenhouse
+    slug: artefact
+    verifie_le: 2026-10-15      # 10 offres au Maroc (Casablanca) sur 138
+  - nom: Nuitée
+    ats: greenhouse
+    slug: nuitee
+    verifie_le: 2026-10-15      # 6 sur 28
+  - nom: Yassir
+    ats: lever
+    slug: Yassir
+    verifie_le: 2026-10-15      # 10 sur 127 (offres multi-pays Maghreb)
+  - nom: Theodo
+    ats: lever
+    slug: theodo
+    verifie_le: 2026-10-15      # 8 sur 137 (Theodo Maroc, Casablanca)
+  - nom: Welo Global
+    ats: lever
+    slug: weloglobal
+    verifie_le: 2026-10-15      # 2 sur 539 (missions à distance ouvertes au Maroc)

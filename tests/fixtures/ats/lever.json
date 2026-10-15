@@ -1,0 +1,45 @@
+[
+  {
+    "additionalPlain": "Nous valorisons la diversité.",
+    "categories": {
+      "commitment": "Full-time",
+      "department": "Product & Tech",
+      "location": "Algiers, Algeria",
+      "team": "Mobile",
+      "allLocations": ["Algiers, Algeria", "Casablanca, Morocco", "Tunis, Tunisia"]
+    },
+    "createdAt": 1772536023579,
+    "descriptionPlain": "Acme Maghreb est une super-app.",
+    "id": "aaaa-1111",
+    "lists": [
+      {"text": "Responsabilités", "content": "<li>Développer en <b>Kotlin</b></li><li>3+ years of experience with Android</li>"}
+    ],
+    "text": "Android Developer",
+    "country": "DZ",
+    "workplaceType": "hybrid",
+    "hostedUrl": "https://jobs.lever.co/acme/aaaa-1111"
+  },
+  {
+    "categories": {"commitment": "Stage", "location": "Algiers, Algeria", "allLocations": ["Algiers, Algeria"]},
+    "createdAt": 1772536023579,
+    "descriptionPlain": "Alger uniquement.",
+    "id": "bbbb-2222",
+    "lists": [],
+    "text": "Stagiaire Marketing",
+    "country": "DZ",
+    "workplaceType": "onsite",
+    "hostedUrl": "https://jobs.lever.co/acme/bbbb-2222"
+  },
+  {
+    "categories": {"commitment": "Freelancer (Hourly Rate)", "location": "Remote", "allLocations": ["Remote"]},
+    "createdAt": 1760000000000,
+    "descriptionPlain": "Annotation de données en arabe marocain.",
+    "id": "cccc-3333",
+    "lists": [],
+    "text": "Generative AI Analyst | Arabic (Morocco)",
+    "country": "MA",
+    "workplaceType": "remote",
+    "hostedUrl": "https://jobs.lever.co/acme/cccc-3333",
+    "salaryRange": {"min": 10, "max": 15, "currency": "USD", "interval": "per-hour-wage"}
+  }
+]

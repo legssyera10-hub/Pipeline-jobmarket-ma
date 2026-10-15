@@ -1,0 +1,25 @@
+# Secrets
+.env
+credentials*.json
+*.pem
+
+# Python
+*.pyc
+__pycache__/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Données et sorties (jamais commitées : on publie du code et des agrégats, pas les annonces)
+data/
+logs/
+*.log
+spark-warehouse/
+metastore_db/
+derby.log
+mlruns/
+
+# Notebooks
+.ipynb_checkpoints/

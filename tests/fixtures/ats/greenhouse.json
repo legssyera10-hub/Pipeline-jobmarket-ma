@@ -1,0 +1,51 @@
+{
+  "jobs": [
+    {
+      "absolute_url": "https://job-boards.greenhouse.io/acme/jobs/101",
+      "internal_job_id": 9001,
+      "location": {"name": "Tour Atlas, Boulevard Zerktouni, Casablanca, Maroc"},
+      "metadata": [
+        {"id": 1, "name": "Employment Type", "value": "Full-time", "value_type": "single_select"},
+        {"id": 2, "name": "Seniority", "value": "Junior", "value_type": "single_select"}
+      ],
+      "id": 101,
+      "updated_at": "2026-10-07T16:41:02-04:00",
+      "requisition_id": "R-1",
+      "title": "Junior Data Engineer - Casablanca",
+      "company_name": "Acme",
+      "first_published": "2026-09-30T23:30:00-04:00",
+      "language": "fr",
+      "application_deadline": null,
+      "content": "&lt;p&gt;&lt;strong&gt;Missions&lt;/strong&gt;&lt;/p&gt;\n&lt;ul&gt;&lt;li&gt;Pipelines Spark et Airflow&lt;/li&gt;&lt;li&gt;2 ans d&amp;#39;exp&amp;eacute;rience en Python&lt;/li&gt;&lt;/ul&gt;",
+      "departments": [{"id": 7, "name": "Data Engineering", "child_ids": [], "parent_id": null}],
+      "offices": [{"id": 8, "name": "Casablanca", "location": "Tour Atlas, Casablanca, Maroc", "child_ids": [], "parent_id": null}]
+    },
+    {
+      "absolute_url": "https://job-boards.greenhouse.io/acme/jobs/102",
+      "location": {"name": "Paris, France"},
+      "metadata": [],
+      "id": 102,
+      "updated_at": "2026-10-07T10:00:00-04:00",
+      "title": "Data Engineer - Paris",
+      "company_name": "Acme",
+      "first_published": "2026-10-01T10:00:00-04:00",
+      "content": "&lt;p&gt;Paris&lt;/p&gt;",
+      "departments": [],
+      "offices": [{"id": 9, "name": "Paris", "location": "Paris, France", "child_ids": [], "parent_id": null}]
+    },
+    {
+      "absolute_url": "https://job-boards.greenhouse.io/acme/jobs/103",
+      "location": {"name": "Hybrid"},
+      "metadata": [{"id": 1, "name": "Employment Type", "value": "Internship", "value_type": "single_select"}],
+      "id": 103,
+      "updated_at": "2026-10-02T09:00:00+01:00",
+      "title": "Stage - Analyste BI",
+      "company_name": "Acme",
+      "first_published": "2026-10-02T09:00:00+01:00",
+      "content": "&lt;p&gt;Power BI&lt;/p&gt;",
+      "departments": [],
+      "offices": [{"id": 10, "name": "Rabat", "location": null, "child_ids": [], "parent_id": null}]
+    }
+  ],
+  "meta": {"total": 3}
+}
