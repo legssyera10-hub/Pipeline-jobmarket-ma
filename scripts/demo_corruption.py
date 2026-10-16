@@ -17,7 +17,6 @@ Code de sortie 0 si la corruption a bien été arrêtée.
 from __future__ import annotations
 
 import argparse
-import sys
 from datetime import UTC, date, datetime
 
 import pandas as pd
@@ -25,6 +24,7 @@ from pyspark.sql import functions as F
 
 from src.ingestion.bronze import TECH_COLUMNS, write_bronze
 from src.transform.silver import print_report, run
+from src.utils.cli import run_cli
 from src.utils.config import get_settings
 from src.utils.db import apply_schema
 from src.utils.spark import get_spark
@@ -137,4 +137,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    run_cli(main)

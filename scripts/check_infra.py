@@ -22,6 +22,7 @@ from datetime import date
 import pandas as pd
 import psycopg2
 
+from src.utils.cli import run_cli
 from src.utils.config import get_settings
 from src.utils.spark import get_spark
 from src.utils.storage import s3_client
@@ -142,4 +143,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    run_cli(main)

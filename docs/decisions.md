@@ -388,3 +388,73 @@ Rédigé au moment de la décision, pas après.
   y compris celles qui n'avaient pas été modifiées (copie côté serveur : 141 s). Cela
   oriente vers l'environnement (swap de la VM Docker, disque) plutôt que vers le
   code. Les durées restent dans les logs : elles serviront dans Airflow.
+
+## D36 — Airflow 3.3.2 plutôt que la 2.9 du plan (jour 7)
+
+- **Raison :** Airflow 3 est la version courante. La 3.3.2 est le dernier correctif
+  de la branche 3.3, et l'image est prise avec le **fichier de contraintes officiel**
+  (provider Docker 4.5.9, docker-py 7.2.0). Différences assumées par rapport au
+  plan : `sla` n'existe plus (remplacé par `dagrun_timeout` et `execution_timeout`
+  par tâche, plus les alertes) ; les composants sont séparés (api-server, scheduler,
+  dag-processor) ; les imports viennent de `airflow.sdk`.
+- **Coût :** les tutoriels Airflow 2 ne s'appliquent pas tels quels ; certaines API
+  ont changé (`DagBag` n'accepte plus `include_examples`, par exemple).
+
+## D37 — Chaque tâche = un conteneur `jobmarket-app` (DockerOperator) (jour 7)
+
+- **Alternative écartée :** installer Spark, Great Expectations et le code dans
+  l'image Airflow.
+- **Raison :** Airflow ne fait qu'ordonnancer ; les jobs tournent dans **la même
+  image que les tests**. Aucun conflit possible entre les dépendances d'Airflow et
+  celles du pipeline (GX, PySpark, numpy 2...). Le code est monté depuis la machine
+  hôte : une correction est prise en compte au réessai suivant, sans reconstruire
+  d'image (c'est arrivé : voir le journal).
+- **Coût :** Airflow accède au socket Docker (`/var/run/docker.sock`), ce qui revient
+  à un accès administrateur à Docker. Acceptable en local, interface liée à
+  127.0.0.1 ; **à ne pas reproduire tel quel en production**. Chaque tâche paie
+  aussi le démarrage d'un conteneur et d'une JVM (~1 min).
+
+## D38 — Collecte à 14:00, rattrapage à 18:00 (jour 7)
+
+- **Raison :** une API ne rend que l'état du jour : un jour manqué est perdu.
+  14:00 : un employeur en échec arrête la suite, car on ne fige pas un Bronze
+  incomplet (il est immuable). 18:00 : seule la collecte des employeurs manquants
+  est retentée, puis la journée est traitée avec ce qui a été collecté, avec alerte.
+  Le comportement est déterminé par l'heure de la **date logique** (pas par
+  `now()`) : un run relancé plus tard se comporte comme à son heure prévue.
+- **Coût :** si le PC est éteint à 14:00 **et** à 18:00, la journée est perdue.
+
+## D39 — Codes de sortie : seules les pannes passagères sont réessayées (jour 7)
+
+- **Alternative écartée :** 3 réessais pour tout (configuration naïve).
+- **Raison :** un changement de format d'API ou un lot refusé par la qualité donnera
+  le même résultat 4 fois ; réessayer ne fait que retarder l'alerte d'environ
+  15 minutes. Convention : 0 succès ; 1 panne passagère (MinIO, réseau) -> 3
+  réessais espacés (2, 4, 8 min) ; 2 erreur d'usage et 3 données invalides ->
+  `AirflowFailException`, échec immédiat et alerte. Mesuré : la panne de format
+  échoue en 90 s, une seule tentative.
+
+## D40 — Alertes Telegram : échec définitif et rétablissement (jour 7)
+
+- **Raison :** une alerte par **échec définitif** (après réessais) avec les
+  dernières lignes du log du conteneur, et une alerte quand une tâche **réussit
+  après un échec** (l'incident s'est résolu seul). Pas d'alerte à chaque tentative,
+  pour ne pas noyer les vraies. Les secrets passent en `private_environment`
+  (jamais affichés dans l'interface d'Airflow). Une alerte qui échoue n'empêche
+  jamais de voir l'erreur d'origine.
+
+## D41 — Pool `spark` à 1 place, parallélisme 2 (jour 7)
+
+- **Raison :** Docker dispose de 5,4 Go ; deux jobs Spark simultanés (par exemple
+  le retraitement Kaggle et le run quotidien) ne tiennent pas en mémoire. Silver et
+  Gold de tous les DAGs passent par le pool `spark` (1 place) : ils s'attendent au
+  lieu de se faire tuer par manque de mémoire.
+
+## D42 — Pannes provoquées sur une source isolée (`ats_maroc_demo`) (jour 7)
+
+- **Raison :** provoquer une panne sur les vraies données reviendrait à les
+  corrompre. `scripts/preparer_incident.py` copie les vraies réponses brutes vers
+  `ats_maroc_demo` en les altérant, le DAG est déclenché avec
+  `{"source": "ats_maroc_demo", "collecter": false}`, puis tout est nettoyé
+  (MinIO et Gold). Le même code et le même DAG sont exercés que pour la vraie
+  source.

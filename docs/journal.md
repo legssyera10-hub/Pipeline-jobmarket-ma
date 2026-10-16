@@ -422,3 +422,131 @@ l'extraction.
   d'images Docker récupérables appartiennent à d'autres projets ; je n'y ai pas
   touché, j'ai seulement supprimé 2 anciennes images de ce projet.
 - **Annoter les 100 offres** (jour 3), toujours en attente.
+
+## Jour 7 — 2026-10-16 — Orchestration Airflow, alertes, pannes provoquées
+
+### Préparation (la veille et le matin)
+
+- **Docker : 4 -> 5,4 Go** via `C:\Users\lenovo\.wslconfig` (5,5 Go + 2 Go de
+  swap). Le premier redémarrage n'a pas suffi : l'ancienne instance de Docker
+  Desktop tournait encore. J'ai fermé ses processus puis je l'ai relancé.
+- **Régression du jour 6 : hypothèse « mémoire » réfutée.** Avec un swap vide, la
+  même journée (18 avril) prend **430 s** de construction (245 s la veille). Le PC
+  est sur secteur, en mode « Utilisation normale ». Cause toujours inconnue.
+- **Telegram** : bot `@jobmarket_ma_alertes_bot`, script
+  `scripts/configurer_telegram.py` (recherche de l'identifiant de conversation,
+  message de test reçu). Les premiers messages avaient déjà été consommés : il a
+  fallu un nouveau message.
+- **Git** : premier commit poussé sur `legssyera10-hub/Pipeline-jobmarket-ma`
+  (identité Git locale au projet).
+
+### Ce qui a été construit
+
+- `docker-compose.yml` : Airflow 3.3.2 (api-server, scheduler, dag-processor,
+  initialisations), base `airflow` dans le PostgreSQL existant, interface sur
+  `127.0.0.1:8080`, `restart: unless-stopped` partout.
+- `docker/airflow.Dockerfile` : provider Docker 4.5.9 via les contraintes
+  officielles.
+- `dags/commun.py` : tâche = conteneur `jobmarket-app` (`JobOperator`), alertes
+  Telegram (échec définitif, rétablissement), codes de sortie non réessayés.
+- `dags/ats_maroc_quotidien.py` : 14:00 et 18:00 (heure du Maroc), choisir ->
+  collecte -> bronze -> silver -> gold, paramètres `source`, `collecter`, `date`.
+- `dags/kaggle_manuel.py` : retraitement à la demande.
+- Code : `SchemaDriftError` (format d'API), collecte `--rattrapage` + alerte,
+  source isolée `ats_maroc_demo`, `scripts/preparer_incident.py`,
+  `src/utils/cli.py`, codes de sortie 0/1/2/3.
+- `tests/airflow/verifier_dags.py` : **19 vérifications** exécutées dans l'image
+  Airflow. Tests du projet : **260**.
+
+### Le run planifié réel
+
+**14:00:01** : déclenchement automatique de
+`scheduled__2026-10-16T13:00:00+00:00`, terminé en moins de 4 min, une tentative
+par tâche.
+
+| Tâche | Résultat |
+|---|---|
+| collecte | 5/5 employeurs, 37 offres au Maroc (Artefact a 140 offres au total, contre 138 la veille) |
+| bronze | 37 lignes, `date=2026-10-16` |
+| silver | **0 nouvelle + 37 déjà publiées** : les mêmes offres, encore ouvertes |
+| gold | publié en 41 s |
+
+La logique d'instantanés (D32) est ainsi vérifiée **en conditions réelles** : deux
+jours de collecte, 37 offres distinctes dans Silver, 37 observations par jour.
+
+### Les pannes provoquées
+
+| Panne | Ce qui s'est passé | Tentatives | Données |
+|---|---|---|---|
+| **MinIO coupé 4 min pendant `silver`** | la tâche reste « en cours » ; le client S3 de Spark (S3A) réessaie seul ; reprise à la remise en route ; construction 269 s au lieu d'environ 2 min | 1 | 37 lignes, 37 distinctes, rien en transit |
+| **Format d'API modifié** (Lever : `text` -> `title`) | `bronze` échoue en 90 s : « 'text' absent de 127/127 offres… rejouer raw -> Bronze » ; silver et gold non exécutés ; alerte | 1 | réponses brutes conservées |
+| **Échec de validation** (lieux -> « Morocco ») | `silver` : `ville_normalisee` vide à 100 %, « NON PUBLIÉ » ; gold non exécuté ; alerte ; lot refusé gardé en transit ; journalisé dans `ops.controles_qualite` | 1 | rien publié |
+| **Échec passager** (premier run de test : Spark bloqué, conteneur arrêté) | réessai 2 min plus tard avec le code corrigé, succès, alerte « ✅ rétabli à la tentative 2 » | 2 | correctes |
+
+Limite de la panne MinIO : la coupure de 4 min a été absorbée **un niveau plus
+bas** (client S3A) ; le niveau Airflow (réessais 2, 4, 8 min puis alerte) n'a pas
+été déclenché par MinIO, mais il l'a été par l'échec passager ci-dessus. Les
+réessais S3A sont signalés au niveau INFO, masqué par notre niveau WARN :
+la preuve est la durée, pas une ligne de log.
+
+Effet de bord de la panne de validation : en remplaçant **tous** les lieux par
+« Morocco », la simulation a fait passer 969 offres du monde entier pour
+marocaines (au lieu de 37). Sans conséquence : le portillon a bloqué.
+
+### Difficultés et erreurs
+
+1. **Spark ne démarrait pas sous Airflow.** Le driver se sert à lui-même les jars
+   déclarés dans `spark.jars` ; l'envoi du jar AWS (280 Mo) a échoué dans le
+   conteneur lancé par Airflow. Pire, **le processus ne s'est pas terminé** : un
+   fil de la JVM l'a gardé en vie, et la tâche serait restée bloquée 30 min. Deux
+   correctifs : jars mis directement sur le classpath (`extraClassPath`, et Spark
+   lié à 127.0.0.1) ; `src/utils/cli.py`, qui garantit qu'un job en échec se
+   termine toujours, avec un code de sortie.
+2. **Conteneurs limités à 1 coeur.** `DockerOperator` a `cpus=1.0` par défaut :
+   Spark en `local[4]` sur un seul coeur, 184 s pour construire 37 offres. Avec
+   `cpus=4` : silver 452 -> 131 s, gold 131 -> 54 s.
+3. **Tout était réessayé**, y compris les erreurs déterministes (format d'API,
+   qualité) : le même échec 4 fois, et une alerte ~15 min plus tard. Convention de
+   codes de sortie et `JobOperator` (D39).
+4. **Ma propre erreur de date.** Le script de préparation avait copié les
+   réponses du jour le plus récent (le 16, après la vraie collecte) ; il affichait
+   la bonne date, mais j'ai déclenché le run avec le 15. Bronze vide, réessayé 3
+   fois avec le code 1. Cela a révélé un vrai défaut : **une date vide doit sortir
+   avec le code 3** (réessayer ne crée pas de données). Corrigé ; la 4e tentative,
+   avec le code corrigé, est bien sortie avec le code 3, sans réessai.
+5. **Ma propre erreur de script : MinIO coupé 12 minutes par erreur.** La commande
+   d'arrêt était enchaînée par `;` après des attentes qui ont expiré : elle s'est
+   exécutée quand même. Aucun impact sur les vraies données (run réel de 14:00
+   déjà terminé, données vérifiées ensuite : 10 réponses brutes, 2 Bronze, 37
+   offres distinctes, 37 observations par jour). La panne contrôlée a ensuite été
+   faite avec `&&` et des conditions vérifiées.
+6. Airflow 3 : `DagBag(include_examples=...)` n'existe plus ; `private_environment`
+   est stocké sous `_private_environment` ; le PATCH de l'état d'un run par l'API
+   REST a renvoyé une erreur de base de données (non creusée : contourné).
+7. Git Bash convertit `/t/...` en `T:/...` dans les arguments de `docker run` :
+   `MSYS_NO_PATHCONV=1`.
+
+### Points ouverts
+
+- **Le run de 18:00** (rattrapage) n'a pas été observé : il aura lieu si le PC est
+  allumé et Docker lancé. À vérifier dans l'interface (http://localhost:8080).
+- `COLLECTE_CONTACT` toujours vide : avertissement à chaque collecte.
+- Régression de performance du jour 6 : cause inconnue (voir plus haut).
+- Une alerte Telegram d'échec a été envoyée pour le run de démonstration raté
+  (date vide) : ce n'était pas un incident sur les vraies données.
+
+### Enquête de performance : ce qui a été établi au jour 7
+
+- Pendant la dernière suite de tests (11 min 38, contre 2 min 47 au jour 6), le
+  seul démarrage de la session Spark a pris **152 s**. Mesuré à froid juste après :
+  **5,4 s** (session) + 7,6 s (premier calcul). Ce n'est donc pas Spark en soi.
+- Hypothèse « résolution de nom lente » testée : résolution du nom d'hôte du
+  conteneur en 0,3 à 1,1 s, résolution inverse instantanée -> **non confirmée**.
+- Constat qui pèse : **des conteneurs oubliés** tournaient en parallèle. Une
+  commande `docker compose run` coupée par un délai côté client (`timeout`) **laisse
+  son conteneur tourner**. J'en ai trouvé un qui exécutait une ancienne suite de
+  tests depuis 35 min (et un autre, plus tôt, un job Silver). Deux suites de tests
+  se partageaient la machine. C'est probablement une cause des lenteurs observées,
+  sans preuve que ce soit la seule (ni que c'était le cas au jour 6).
+- Leçon : après un délai côté client, vérifier `docker ps` ; préférer des commandes
+  longues en arrière-plan, sans délai qui coupe le client.

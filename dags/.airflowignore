@@ -1,0 +1,2 @@
+# Modules utilitaires, pas des DAGs : inutile de les faire analyser par Airflow
+commun\.py

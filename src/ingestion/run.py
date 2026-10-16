@@ -5,7 +5,8 @@
   python -m src.ingestion.run --all                    # backfill complet
 
 Une date déjà présente en Bronze est ignorée (« skipped ») : Bronze est immuable.
-Code de sortie 1 si une date échoue, ou si la date unique demandée est vide.
+Codes de sortie : 0 OK ; 1 une date en échec (panne) ; 3 date unique vide, ou format
+d'API modifié (déterministe : Airflow ne réessaie pas, voir dags/commun.py).
 """
 
 from __future__ import annotations
@@ -13,20 +14,24 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from collections.abc import Callable
 from datetime import date, timedelta
 
 import pandas as pd
 
-from src.ingestion.ats_maroc import AtsMarocCollector
+from src.ingestion.ats.parsers import SchemaDriftError
+from src.ingestion.ats_maroc import DEMO_SOURCE, AtsMarocCollector
 from src.ingestion.base import Collector
 from src.ingestion.bronze import EmptyBatchError, write_bronze
 from src.ingestion.kaggle_linkedin import KaggleLinkedInCollector
 from src.utils.config import get_settings
 from src.utils.storage import s3_client
 
-COLLECTORS: dict[str, type[Collector]] = {
+COLLECTORS: dict[str, Callable[[], Collector]] = {
     KaggleLinkedInCollector.name: KaggleLinkedInCollector,
     AtsMarocCollector.name: AtsMarocCollector,
+    # Source isolée, alimentée par scripts/preparer_incident.py (pannes provoquées)
+    DEMO_SOURCE: lambda: AtsMarocCollector(source=DEMO_SOURCE),
 }
 
 
@@ -64,6 +69,7 @@ def main(argv: list[str] | None = None) -> int:
         dates = _date_range(args.start, args.end)
 
     counts = {"written": 0, "skipped": 0, "empty": 0, "failed": 0}
+    drift = 0
     rows_written = 0
     t0 = time.perf_counter()
     for d in dates:
@@ -74,6 +80,11 @@ def main(argv: list[str] | None = None) -> int:
         except EmptyBatchError as exc:
             counts["empty"] += 1
             print(f"[bronze] {d} vide : {exc}")
+            continue
+        except SchemaDriftError as exc:  # format d'API changé : déterministe
+            counts["failed"] += 1
+            drift += 1
+            print(f"[bronze] {d} FORMAT MODIFIÉ : {exc}", file=sys.stderr)
             continue
         except Exception as exc:
             counts["failed"] += 1
@@ -90,7 +101,13 @@ def main(argv: list[str] | None = None) -> int:
         + f" ; {rows_written:,} lignes écrites"
     )
     single_date_empty = bool(args.date) and counts["empty"] == 1
-    return 1 if counts["failed"] or single_date_empty else 0
+    if counts["failed"] and drift == counts["failed"]:
+        return 3  # que des changements de format : réessayer ne changerait rien
+    if single_date_empty and not counts["failed"]:
+        # Aucune donnée pour cette date (collecte absente, mauvaise date demandée) :
+        # réessayer ne fera pas apparaître de données (constaté au jour 7)
+        return 3
+    return 1 if counts["failed"] else 0
 
 
 if __name__ == "__main__":

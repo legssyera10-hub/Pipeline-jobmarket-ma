@@ -64,9 +64,22 @@ def get_spark(
     jars_dir = os.getenv("SPARK_JARS_DIR")
     jars = sorted(glob.glob(os.path.join(jars_dir, "*.jar"))) if jars_dir else []
     if jars:
-        builder = builder.config("spark.jars", ",".join(jars))
+        # Jars mis DIRECTEMENT sur le classpath (lu au lancement de la JVM). Avec
+        # spark.jars, le driver se les sert à lui-même par son serveur de fichiers :
+        # sous Airflow (DockerOperator), l'envoi du jar AWS de 280 Mo a échoué et
+        # bloqué le démarrage de Spark (jour 7).
+        classpath = os.path.join(jars_dir, "*")
+        builder = builder.config("spark.driver.extraClassPath", classpath).config(
+            "spark.executor.extraClassPath", classpath
+        )
     else:
         builder = builder.config("spark.jars.packages", _MAVEN_PACKAGES)
+    if s.spark_master.startswith("local"):
+        # Mode local : tout tourne dans une JVM, inutile de dépendre du nom d'hôte du
+        # conteneur (différent selon qu'il est lancé par compose ou par Airflow)
+        builder = builder.config("spark.driver.bindAddress", "127.0.0.1").config(
+            "spark.driver.host", "127.0.0.1"
+        )
 
     spark = builder.getOrCreate()
     spark.sparkContext.setLogLevel("WARN")

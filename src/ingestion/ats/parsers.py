@@ -20,6 +20,39 @@ from src.transform.maroc import is_morocco
 GREENHOUSE_URL = "https://boards-api.greenhouse.io/v1/boards/{slug}/jobs?content=true"
 LEVER_URL = "https://api.lever.co/v0/postings/{slug}?mode=json"
 
+# Champs sans lesquels une offre est inexploitable. S'ils disparaissent, c'est que
+# l'API a changé de format : on échoue avec un message explicite plutôt que de
+# produire des lignes vides que seule la quarantaine finirait par remarquer.
+REQUIRED_FIELDS = {
+    "greenhouse": ("id", "title", "location", "absolute_url"),
+    "lever": ("id", "text", "categories", "hostedUrl"),
+}
+
+
+class SchemaDriftError(ValueError):
+    """La réponse de l'API n'a plus le format attendu par le parseur."""
+
+
+def check_schema(ats: str, items) -> None:
+    if not isinstance(items, list):
+        raise SchemaDriftError(
+            f"API {ats} : liste d'offres attendue, reçu {type(items).__name__}"
+        )
+    missing = {
+        f: sum(1 for it in items if not isinstance(it, dict) or f not in it)
+        for f in REQUIRED_FIELDS[ats]
+    }
+    missing = {f: n for f, n in missing.items() if n}
+    if missing:
+        detail = ", ".join(
+            f"'{f}' absent de {n}/{len(items)} offres" for f, n in missing.items()
+        )
+        raise SchemaDriftError(
+            f"API {ats} : format de réponse modifié ({detail}). Les réponses brutes "
+            "sont conservées : corriger le parseur puis rejouer raw -> Bronze."
+        )
+
+
 _WORK_TYPES = [
     (re.compile(r"intern|stage|stagiaire|alternan|apprenti"), "INTERNSHIP"),
     (re.compile(r"part.?time|temps partiel"), "PART_TIME"),
@@ -100,6 +133,9 @@ def _gh_metadata(job: dict, name: str):
 
 
 def parse_greenhouse(body: dict, employeur: str, slug: str) -> list[dict]:
+    if not isinstance(body, dict) or "jobs" not in body:
+        raise SchemaDriftError("API greenhouse : clé 'jobs' absente de la réponse")
+    check_schema("greenhouse", body["jobs"])
     out = []
     for job in body.get("jobs", []):
         candidates = [(job.get("location") or {}).get("name")] + [
@@ -150,6 +186,7 @@ def _lever_description(post: dict) -> str | None:
 
 
 def parse_lever(body: list, employeur: str, slug: str) -> list[dict]:
+    check_schema("lever", body)
     out = []
     for post in body:
         cat = post.get("categories") or {}

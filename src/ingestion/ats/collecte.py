@@ -9,7 +9,8 @@ Ces API donnent l'état du MOMENT : on ne peut pas recollecter le 12 octobre le
 15 octobre. La collecte n'accepte donc que la date du jour. Ce qui se rejoue, c'est
 le parsing (raw -> Bronze), à partir des réponses stockées.
 Un employeur déjà collecté ce jour est ignoré : relancer ne refait aucun appel.
-Un employeur en échec n'empêche pas les autres ; code de sortie 1 s'il y en a un.
+Un employeur en échec n'empêche pas les autres ; alerte Telegram, et code de sortie 1
+(sauf avec --rattrapage, dernier passage du jour : on traite ce qui a été collecté).
 """
 
 from __future__ import annotations
@@ -28,7 +29,8 @@ import yaml
 from botocore.exceptions import ClientError
 
 from src.ingestion.ats.http import PoliteClient, RobotsDenied, TransientHTTPError
-from src.ingestion.ats.parsers import API_URLS, PARSERS
+from src.ingestion.ats.parsers import API_URLS, PARSERS, SchemaDriftError
+from src.utils.alertes import send_alert
 from src.utils.config import Settings, get_settings
 from src.utils.storage import s3_client
 
@@ -131,16 +133,41 @@ def collect(
                 continue
             raise
         n_total = len(body.get("jobs", [])) if isinstance(body, dict) else len(body)
-        n_maroc = len(PARSERS[emp.ats](body, emp.nom, emp.slug))
+        try:  # comptage indicatif : la collecte a réussi même si le format a changé
+            n_maroc = len(PARSERS[emp.ats](body, emp.nom, emp.slug))
+        except SchemaDriftError as exc:
+            n_maroc, res = None, {**res, "avertissement": str(exc)}
         results.append(
             {**res, "statut": "written", "offres": n_total, "offres_maroc": n_maroc}
         )
     return results
 
 
+def alert_message(run_date: date, results: list[dict], rattrapage: bool) -> str | None:
+    """Texte de l'alerte Telegram, ou None si tout va bien."""
+    failed = [r for r in results if r["statut"] == "failed"]
+    drift = [r for r in results if r.get("avertissement")]
+    if not failed and not drift:
+        return None
+    lines = [f"⚠️ JobMarket MA : collecte {SOURCE} du {run_date} incomplète"]
+    lines += [f"• {r['employeur']} ({r['ats']}) : {r['erreur'][:200]}" for r in failed]
+    lines += [f"• {r['employeur']} : {r['avertissement'][:200]}" for r in drift]
+    lines.append(
+        "Rattrapage 18:00 : la journée sera traitée avec les employeurs disponibles."
+        if rattrapage
+        else "Nouvel essai au rattrapage de 18:00 (seuls les manquants seront appelés)."
+    )
+    return "\n".join(lines)
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Collecte brute des API d'ATS")
     p.add_argument("--date", type=date.fromisoformat, help="défaut : aujourd'hui (UTC)")
+    p.add_argument(
+        "--rattrapage",
+        action="store_true",
+        help="dernier passage du jour : un employeur en échec n'empêche plus la suite",
+    )
     args = p.parse_args(argv)
     run_date = args.date or datetime.now(UTC).date()
     settings = get_settings()
@@ -159,12 +186,19 @@ def main(argv: list[str] | None = None) -> int:
             if r["statut"] == "written"
             else r.get("erreur", "")
         )
+        if r.get("avertissement"):
+            detail += f" | {r['avertissement']}"
         print(
             f"[collecte] {r['statut']:<8} {r['ats']:<11} {r['employeur']:<14} {detail}"
         )
     failed = [r for r in results if r["statut"] == "failed"]
     print(f"[collecte] {run_date} : {len(results) - len(failed)}/{len(results)} OK")
-    return 1 if failed else 0
+    message = alert_message(run_date, results, args.rattrapage)
+    if message:
+        send_alert(message)
+    # 14:00 : un échec arrête la suite (on ne fige pas un Bronze incomplet, le
+    # rattrapage de 18:00 réessaiera). 18:00 : on traite ce qu'on a, alerte envoyée.
+    return 1 if failed and not args.rattrapage else 0
 
 
 if __name__ == "__main__":

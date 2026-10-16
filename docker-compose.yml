@@ -1,9 +1,44 @@
 # Infrastructure locale du pipeline.
-#   docker compose up -d                  -> MinIO + PostgreSQL (+ création du bucket)
+#   docker compose up -d                  -> MinIO + PostgreSQL + Airflow (UI : localhost:8080)
 #   docker compose run --rm app <cmd>     -> conteneur Python 3.11 / Java 17 / PySpark
 # Les identifiants viennent de .env (voir .env.example), jamais écrits en dur ici.
+# restart: unless-stopped : tout redémarre avec Docker Desktop (collecte à 14:00/18:00).
 
 name: jobmarket
+
+x-airflow-common: &airflow-common
+  # Airflow 3.3.2 (dernier correctif de la 3.3) ; image dérivée : ajoute le provider
+  # Docker avec les contraintes officielles d'Airflow (voir docker/airflow.Dockerfile)
+  build:
+    context: .
+    dockerfile: docker/airflow.Dockerfile
+  image: jobmarket-airflow:3.3.2
+  env_file: .env
+  environment:
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/airflow
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DEFAULT_TIMEZONE: Africa/Casablanca
+    # Un DAG nouveau est en pause : on l'active délibérément après vérification
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    # Mémoire : Docker a 5,4 Go ; deux jobs Spark en parallèle ne tiennent pas
+    AIRFLOW__CORE__PARALLELISM: "2"
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:?générer AIRFLOW_FERNET_KEY dans .env}
+    AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET:?générer AIRFLOW_JWT_SECRET dans .env}
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
+    AIRFLOW__API__BASE_URL: http://localhost:8080
+    # Usage local uniquement (port lié à 127.0.0.1) : pas d'écran de connexion
+    AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "true"
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
+  # Groupe 0 : accès à /var/run/docker.sock pour lancer les conteneurs de jobs
+  user: "${AIRFLOW_UID:-50000}:0"
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./logs/airflow:/opt/airflow/logs
+    - /var/run/docker.sock:/var/run/docker.sock
+  restart: unless-stopped
+  depends_on: &airflow-depends
+    airflow-init: { condition: service_completed_successfully }
 
 services:
   minio:
@@ -21,6 +56,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   # Job one-shot : crée le bucket au démarrage (idempotent grâce à --ignore-existing).
   minio-init:
@@ -54,9 +90,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   # Environnement d'exécution des jobs (Spark tourne ici, pas sous Windows).
-  # Profil "tools" : non démarré par `docker compose up`, lancé à la demande.
+  # Profil "tools" : non démarré par `docker compose up`, lancé à la demande — et par
+  # Airflow, qui crée un conteneur de cette image pour chaque tâche (DockerOperator).
   app:
     build:
       context: .
@@ -74,6 +112,70 @@ services:
     depends_on:
       minio: { condition: service_healthy }
       postgres: { condition: service_healthy }
+
+  # --- Airflow ----------------------------------------------------------------------
+
+  # Crée la base de métadonnées d'Airflow dans le PostgreSQL existant (idempotent)
+  airflow-db-init:
+    image: postgres:16
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGUSER: ${POSTGRES_USER}
+      PGHOST: postgres
+      PGDATABASE: ${POSTGRES_DB:-jobmarket}
+    entrypoint: >
+      bash -c "
+      psql -tAc \"SELECT 1 FROM pg_database WHERE datname = 'airflow'\" | grep -q 1
+      || psql -c 'CREATE DATABASE airflow';
+      echo 'base airflow prête'
+      "
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+
+  # Migre le schéma d'Airflow et crée le pool "spark" (1 seul job Spark à la fois)
+  airflow-init:
+    <<: *airflow-common
+    command:
+      - bash
+      - -c
+      - >
+        airflow db migrate &&
+        airflow pools set spark 1 "Un seul job Spark à la fois (RAM de Docker limitée)"
+    restart: "no"
+    depends_on:
+      airflow-db-init: { condition: service_completed_successfully }
+
+  airflow-apiserver:
+    <<: *airflow-common
+    command: api-server
+    ports: ["127.0.0.1:8080:8080"]  # interface accessible depuis ce PC uniquement
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/monitor/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  airflow-dag-processor:
+    <<: *airflow-common
+    command: dag-processor
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type DagProcessorJob --hostname \"$${HOSTNAME}\""]
+      interval: 60s
+      timeout: 30s
+      retries: 5
+      start_period: 60s
 
 volumes:
   minio_data:

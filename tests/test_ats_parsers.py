@@ -7,6 +7,7 @@ import pytest
 
 from src.ingestion.ats.parsers import (
     BRONZE_COLUMNS,
+    SchemaDriftError,
     html_to_text,
     map_work_type,
     parse_greenhouse,
@@ -118,3 +119,24 @@ def test_work_type_mapping(raw, code):
 
 def test_html_to_text_empty():
     assert html_to_text(None) is None and html_to_text("<p> </p>") is None
+
+
+# --- Changement de format de l'API (jour 7) ------------------------------------------
+
+
+def test_lever_renamed_field_raises_explicit_error():
+    body = json.loads((FIXTURES / "lever.json").read_text(encoding="utf-8"))
+    for post in body:
+        post["title"] = post.pop("text")  # l'API « renomme » le champ
+    with pytest.raises(SchemaDriftError, match=r"'text' absent de 3/3 offres"):
+        parse_lever(body, "Acme", "acme")
+
+
+def test_greenhouse_without_jobs_key_raises():
+    with pytest.raises(SchemaDriftError, match="'jobs'"):
+        parse_greenhouse({"postings": []}, "Acme", "acme")
+
+
+def test_empty_answer_is_not_a_schema_drift():
+    assert parse_lever([], "Acme", "acme") == []
+    assert parse_greenhouse({"jobs": []}, "Acme", "acme") == []

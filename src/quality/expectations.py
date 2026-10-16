@@ -60,7 +60,8 @@ PROFILS = {
 
 
 def profil(source: str) -> dict:
-    return PROFILS.get(source, PROFILS["defaut"])
+    # Une source de démonstration ("ats_maroc_demo") est contrôlée comme la vraie
+    return PROFILS.get(source.removesuffix("_demo"), PROFILS["defaut"])
 
 
 def etat_codes() -> list[str]:

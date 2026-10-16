@@ -21,15 +21,18 @@ from src.ingestion.base import Collector
 from src.utils.config import Settings, get_settings
 from src.utils.storage import list_keys, s3_client
 
+DEMO_SOURCE = f"{SOURCE}_demo"  # source isolée pour provoquer des incidents (jour 7)
+
 
 class AtsMarocCollector(Collector):
     name = SOURCE
 
-    def __init__(self, settings: Settings | None = None):
+    def __init__(self, settings: Settings | None = None, source: str = SOURCE):
         self.settings = settings or get_settings()
+        self.name = source
 
     def _keys(self, run_date: date | None = None) -> list[str]:
-        prefix = f"raw/source={SOURCE}/"
+        prefix = f"raw/source={self.name}/"
         if run_date:
             prefix += f"date={run_date.isoformat()}/"
         return sorted(list_keys(prefix, self.settings))

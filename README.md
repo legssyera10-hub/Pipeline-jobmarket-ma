@@ -4,14 +4,16 @@ Pipeline en architecture médaillon (Bronze → Silver → Gold) qui collecte de
 d'emploi tech, les nettoie avec PySpark, contrôle leur qualité et publie des agrégats
 analytiques dans PostgreSQL.
 
-> 🚧 En construction — jour 6/10 : deux sources (dataset Kaggle de développement +
-> offres réelles au Maroc via les API publiques de recrutement), Bronze, Silver,
-> qualité des données et Gold. À venir : Airflow, ML.
+> 🚧 En construction — jour 7/10 : le pipeline tourne **tous les jours à 14:00 et
+> 18:00** (Airflow), relançable sans doublon, avec alertes Telegram. Deux sources :
+> offres réelles au Maroc (API publiques de recrutement) et dataset Kaggle de
+> développement. À venir : ML, CI, tableau de bord.
 
 ## Stack
 
-Python 3.11 · PySpark 3.5 · Great Expectations 1.24 · MinIO (stockage objet S3) ·
-PostgreSQL 16 · Docker Compose · pytest · ruff · black — à venir : Airflow, MLflow
+Python 3.11 · PySpark 3.5 · Airflow 3.3 · Great Expectations 1.24 · MinIO (stockage
+objet S3) · PostgreSQL 16 · Docker Compose · Telegram (alertes) · pytest · ruff ·
+black — à venir : MLflow
 
 ## Architecture
 
@@ -24,13 +26,16 @@ dataset Kaggle ─────────────┤
              │  PySpark : normalisation, enrichissement, republications
              │  règles ligne à ligne ───────────────► silver/rejets (quarantaine + motifs)
              ▼
-           silver/_staging ──► audit Great Expectations ──✗──► non publié, code 1
+           silver/_staging ──► audit Great Expectations ──✗──► non publié, code 3
              │ ✓ (publication)                                   (ops.controles_qualite)
              ▼
            silver/offres (Parquet typé, partitionné source=/date_collecte=)
              │  agrégations (recalcul complet)
              ▼
            gold_staging ──► transaction ──► gold.* (PostgreSQL) ──► Power BI
+
+Airflow (14:00 et 18:00, heure du Maroc) : chaque étape = un conteneur jobmarket-app
+Échec définitif ou rétablissement ──► alerte Telegram
 ```
 
 ## Démarrage rapide
@@ -39,9 +44,9 @@ Prérequis : Docker Desktop. Rien d'autre à installer sur la machine : Python, 
 Spark tournent dans le conteneur `app`.
 
 ```bash
-cp .env.example .env              # puis changer les mots de passe
-docker compose up -d              # MinIO + PostgreSQL + création du bucket
+cp .env.example .env              # mots de passe, secrets Airflow, Telegram (voir le fichier)
 docker compose --profile tools build app
+docker compose up -d              # MinIO, PostgreSQL, Airflow (http://localhost:8080)
 docker compose run --rm app python -m scripts.check_infra   # 6/6 contrôles OK attendus
 docker compose run --rm --no-deps app pytest -v
 ```
@@ -51,6 +56,7 @@ docker compose run --rm --no-deps app pytest -v
 | Console MinIO   | http://localhost:9001           | voir `.env`         |
 | API S3 MinIO    | http://localhost:9000           | voir `.env`         |
 | PostgreSQL      | `localhost:5432`, base `jobmarket` | voir `.env`      |
+| Airflow         | http://localhost:8080 (ce PC uniquement) | aucun (local) |
 
 ## Sources
 
@@ -179,6 +185,65 @@ annonces. Le recalcul est complet, écrit dans `gold_staging` puis basculé en u
 transaction : un lecteur ne voit jamais d'état intermédiaire. Relancer le job produit
 des tables identiques (empreintes MD5 comparées).
 
+## Orchestration (Airflow 3)
+
+| DAG | Planification | Étapes |
+|---|---|---|
+| `ats_maroc_quotidien` | **14:00** et **18:00**, heure du Maroc | choisir → collecte → bronze → silver → gold |
+| `kaggle_manuel` | à la demande | bronze → silver → gold (retraitement du dataset) |
+
+- **Chaque tâche est un conteneur `jobmarket-app`**, la même image que les tests.
+  Airflow ne fait qu'ordonnancer : aucune dépendance du pipeline n'est installée
+  dans l'image Airflow.
+- **14:00 / 18:00** : à 14:00, si un employeur échoue, la journée n'est pas figée
+  (Bronze est immuable). À 18:00 (rattrapage), seuls les manquants sont rappelés,
+  puis la journée est traitée avec ce qui a été collecté.
+- **Idempotence** : la date traitée vient de la date logique (`{{ ds }}`), jamais
+  de `now()` ; Bronze est immuable ; Silver remplace ses partitions ; Gold bascule
+  en une transaction. Relancer un run produit le même résultat.
+- **Réessais** : 3, espacés de 2, 4 puis 8 minutes, **uniquement pour les pannes
+  passagères** (code de sortie 1). Une erreur déterministe (format d'API modifié,
+  données refusées par la qualité, date vide : code 3) échoue tout de suite.
+- **Alertes Telegram** : échec définitif (avec les dernières lignes du log) et
+  rétablissement après un échec. La collecte alerte aussi quand elle est partielle.
+- **Mémoire** : un seul job Spark à la fois (pool `spark`).
+
+```bash
+# Rejouer un jour sans rappeler les API (les réponses brutes sont conservées) :
+docker compose exec airflow-scheduler airflow dags trigger ats_maroc_quotidien \
+    --conf '{"collecter": false, "date": "2026-10-16"}'
+# Vérifier les DAGs (19 contrôles, exécutés dans l'image Airflow) :
+docker compose run --rm --no-deps -v ./tests/airflow:/opt/airflow/verif \
+    airflow-scheduler python /opt/airflow/verif/verifier_dags.py
+```
+
+## Incidents et résilience
+
+Pannes **provoquées volontairement** le 2026-10-16, sur une source isolée
+(`ats_maroc_demo`, préparée par `scripts/preparer_incident.py`) pour ne jamais
+corrompre les vraies données :
+
+| Panne | Ce qui se passe | Résultat |
+|---|---|---|
+| **MinIO coupé 4 minutes pendant `silver`** | Le client S3 de Spark réessaie seul ; la tâche reste « en cours » et reprend au retour de MinIO (étape de construction : 269 s au lieu d'environ 2 min). | Succès à la **1re tentative**, 37 offres, aucun doublon, rien en transit |
+| **Une source change de format** (Lever : `text` devient `title`) | `bronze` échoue en 90 s, **sans réessai** : « 'text' absent de 127/127 offres… corriger le parseur puis rejouer raw -> Bronze ». Silver et Gold ne s'exécutent pas. | Alerte Telegram ; réponses brutes conservées, parsing rejouable |
+| **La validation échoue** (plus aucune ville reconnue) | `silver` : `ville_normalisee` vide à 100 %, contrôle critique en échec, **« NON PUBLIÉ »**. Gold ne s'exécute pas. | Alerte ; Silver garde sa version précédente ; lot refusé en transit ; trace dans `ops.controles_qualite` |
+| **Panne passagère d'une tâche** (Spark bloqué, conteneur arrêté) | Réessai automatique 2 minutes plus tard | Succès à la 2e tentative, alerte « ✅ rétabli » |
+
+Ce que ces pannes ont révélé, et qui a été corrigé :
+
+- Spark ne démarrait pas sous Airflow (envoi interne d'un jar de 280 Mo), et le
+  processus **ne se terminait pas** après l'erreur : la tâche serait restée bloquée
+  30 minutes. Jars mis sur le classpath ; tout job en échec se termine désormais
+  avec un code de sortie (`src/utils/cli.py`).
+- Les erreurs déterministes étaient réessayées 3 fois : l'alerte arrivait avec
+  environ 15 minutes de retard. Convention de codes de sortie (0/1/2/3).
+- Une date sans données était considérée comme une panne passagère : elle est
+  maintenant non réessayée.
+
+Si le PC est éteint à 14:00 **et** à 18:00, la journée de collecte est perdue :
+une API ne donne que l'état du jour. Le parsing, lui, peut toujours être rejoué.
+
 ## Organisation du dépôt
 
 ```
@@ -188,7 +253,7 @@ src/quality/      règles de quarantaine, suites Great Expectations
 src/utils/        config (.env), SparkSession (s3a + JDBC), client S3, PostgreSQL
 sql/              schéma PostgreSQL (gold, gold_staging, ops), idempotent
 scripts/          scripts opérationnels (check_*, explore, purge, annotation)
-dags/             DAGs Airflow
+dags/             DAGs Airflow (+ commun.py : tâche = conteneur, alertes)
 reference/        référentiels (technologies, états US, villes marocaines, employeurs)
 tests/            tests unitaires (+ fixtures)
 docker/           Dockerfile de l'image app, init SQL PostgreSQL

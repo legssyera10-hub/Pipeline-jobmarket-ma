@@ -16,12 +16,12 @@ Comptages : `nb_offres` = offres uniques (est_republication = false, voir D12),
 from __future__ import annotations
 
 import argparse
-import sys
 import time
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 
+from src.utils.cli import run_cli
 from src.utils.config import Settings, get_settings
 from src.utils.db import apply_schema, connect
 from src.utils.spark import get_spark
@@ -255,4 +255,4 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    run_cli(main)

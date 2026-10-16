@@ -9,15 +9,14 @@ Sorties (Parquet, partitionnées source=<source>/date_collecte=<YYYY-MM-DD>/) :
   silver/rejets  : offres en quarantaine, avec tous leurs motifs (_motifs_rejet).
 Idempotent : seules les partitions traitées sont remplacées (y compris les partitions
 devenues vides), et aucun calcul ne dépend de la date du jour (pas de current_date()).
-Code de sortie 1 si un contrôle critique échoue : Silver n'est alors pas publié et la
-version précédente reste en place.
+Code de sortie 3 si un contrôle critique échoue (données refusées : Airflow ne réessaie
+pas) : Silver n'est pas publié, la version précédente reste en place. 1 = panne.
 """
 
 from __future__ import annotations
 
 import argparse
 import re
-import sys
 import time
 from datetime import date, timedelta
 from pathlib import Path
@@ -40,6 +39,7 @@ from src.transform.text import (
     normalize_title,
     parse_location,
 )
+from src.utils.cli import run_cli
 from src.utils.config import Settings, get_settings
 from src.utils.db import apply_schema
 from src.utils.spark import get_spark
@@ -705,7 +705,7 @@ def main(argv: list[str] | None = None) -> int:
             f"{failed} ; la version précédente de silver/offres est conservée."
         )
         print(f"[silver] lot refusé conservé pour diagnostic : {transit}")
-        return 1
+        return 3  # données refusées : déterministe, Airflow ne réessaie pas
     accounted = m["lignes_silver"] + m["lignes_rejetees"] + m["lignes_deja_publiees"]
     ok = m["lignes_construites"] == m["lignes_bronze"] == accounted and m[
         "lignes_silver"
@@ -715,8 +715,8 @@ def main(argv: list[str] | None = None) -> int:
         f"nouvelles valides ({m['lignes_silver']:,}) + rejets "
         f"({m['lignes_rejetees']:,}) + déjà publiées ({m['lignes_deja_publiees']:,})"
     )
-    return 0 if ok else 1
+    return 0 if ok else 3  # écart de comptage : erreur de logique, pas passagère
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    run_cli(main)
