@@ -16,3 +16,11 @@ psycopg2-binary==2.9.10
 PyYAML==6.0.2
 # Validation de la qualité (jour 5) : API 1.x, testée avec PySpark 3.5 / numpy 2
 great_expectations==1.24.0
+# Couche ML (jour 8) : versions résolues sans modifier numpy/pandas/pyarrow/scipy
+scikit-learn==1.9.1
+lightgbm==4.7.0
+shap==0.51.0
+matplotlib==3.11.2
+# Client MLflow léger (le serveur a sa propre image : docker/mlflow.Dockerfile)
+mlflow-skinny==3.17.1
+skops==0.16.0  # format de sauvegarde des modèles de MLflow 3 (sans pickle)

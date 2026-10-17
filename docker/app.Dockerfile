@@ -24,10 +24,18 @@ WORKDIR /app
 COPY requirements.txt requirements-dev.txt ./
 RUN pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
 
+# OpenMP, requis par LightGBM (jour 8). Couche séparée, après pip, pour ne pas
+# invalider le cache de l'installation Python (~30 min à reconstruire ici).
+RUN apt-get -o Acquire::Check-Date=false update \
+ && apt-get install -y --no-install-recommends libgomp1 \
+ && rm -rf /var/lib/apt/lists/*
+
 ENV PYTHONPATH=/app \
     PYTHONUNBUFFERED=1 \
     PYSPARK_PYTHON=python
 # Great Expectations : pas de télémétrie sortante, pas de barres de progression
 ENV GX_ANALYTICS_ENABLED=false \
     TQDM_DISABLE=1
+# MLflow cherche le commit git du code ; pas de git dans l'image : pas d'avertissement
+ENV GIT_PYTHON_REFRESH=quiet
 CMD ["python", "-m", "scripts.check_infra"]

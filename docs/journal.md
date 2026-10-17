@@ -550,3 +550,145 @@ marocaines (au lieu de 37). Sans conséquence : le portillon a bloqué.
   sans preuve que ce soit la seule (ni que c'était le cas au jour 6).
 - Leçon : après un délai côté client, vérifier `docker ps` ; préférer des commandes
   longues en arrière-plan, sans délai qui coupe le client.
+
+## Jour 8 — 2026-10-17 — Couche ML (MLflow), et la vraie cause des lenteurs
+
+### Correction : run en retard
+
+Le run de 18:00 du 16 est parti le 17 à 13:39 (PC éteint la veille) : la collecte a
+refusé la date passée (code 2) et une fausse alerte d'échec est partie. `choisir`
+compare maintenant la date du run à aujourd'hui : en retard -> message
+d'information, collecte sautée, Bronze rejoué depuis `raw/`. Validé par un vrai
+run (`retard_16`) : Silver « 0 nouvelle + 37 déjà publiées », Gold en succès.
+
+### Serveur MLflow
+
+Service `mlflow` (métadonnées : base PostgreSQL `mlflow` ; artefacts :
+`s3://jobmarket/mlflow`, servis par le serveur). Deux problèmes rencontrés :
+
+- `postgresql://` -> SQLAlchemy 2.1 choisit `psycopg` 3, absent : adresse
+  `postgresql+psycopg2://` (D43).
+- Le serveur MLflow 3 lance 7 processus `huey` (jobs GenAI, scoring en ligne)
+  qui occupaient **1,35 Go** sur les 1,65 Go du conteneur. Désactivés
+  (`MLFLOW_SERVER_ENABLE_JOB_EXECUTION=false`) : 421 Mo.
+
+### Modèle de salaire
+
+Entraîné sur le dataset américain (aucune offre marocaine n'a de salaire, D44),
+découpage par entreprise (D45), 5 configurations dans MLflow (D46).
+
+| Configuration | MAE | Erreur médiane | R² (log) |
+|---|---|---|---|
+| Médiane globale | 42 341 $ | 33 280 $ (40 %) | 0,00 |
+| Médiane famille × niveau | 34 342 $ | 23 420 $ (29 %) | 0,26 |
+| LightGBM sans titre | 30 289 $ | 19 859 $ (26 %) | 0,44 |
+| LightGBM avec titre | 25 588 $ | 15 459 $ (20 %) | 0,58 |
+| **LightGBM avec titre, régularisé** | **25 198 $** | **15 178 $ (19 %)** | **0,59** |
+
+26 598 offres d'entraînement, 7 523 de test (2 033 entreprises jamais vues). Deux
+exécutions complètes donnent exactement les mêmes chiffres (graines fixées).
+
+- −27 % d'erreur par rapport à la meilleure référence naïve ; le titre apporte le
+  plus (MAE 30 289 -> 25 588 $).
+- SHAP (D47) : Python +8,9 % (1 153 offres), GCP +8,3 %, SAS +5,8 % ; Excel
+  −3,2 % (3 994 offres), WordPress −6,7 %. Association, pas causalité. 74
+  technologies dans `gold.prime_salariale_tech`.
+- 80 940 salaires manquants estimés (médiane 74 636 $, 90 % entre 37 000 et
+  158 000 $) -> `ml/predictions/salaire/`.
+- Registre MLflow : `salaire_annuel_usd` version 1, rattachée au run retenu.
+
+Défauts trouvés en exécution réelle, corrigés :
+
+1. `libgomp1` (OpenMP) manquait pour LightGBM -> couche Docker dédiée (D49).
+2. Le premier entraînement complet a échoué **à la toute fin** : MLflow 3
+   sauvegarde LightGBM au format `skops` (sans pickle), paquet absent. Testé
+   d'abord dans un conteneur jetable (sauvegarde puis rechargement identique),
+   puis ajouté. Les 5 runs de cet essai ont été supprimés de MLflow (suppression
+   logique, récupérable) pour garder une seule comparaison lisible.
+3. L'exemple d'entrée du modèle déclenchait un échec de déduction de signature
+   (colonnes catégorielles) : retiré.
+4. MLflow passait ~3 min à déduire les dépendances du modèle (rechargement dans
+   un sous-processus) et en oubliait : dépendances déclarées explicitement.
+
+### Classification des familles de poste
+
+Outil livré, **résultats en attente d'annotation** (D48) : `echantillon` (402
+offres stratifiées puis mélangées, prédiction des règles masquée), guide
+`docs/guide_annotation.md`, `evaluer` (règles vs TF-IDF + régression logistique,
+F1 macro dans MLflow, sentence-transformers si installé). Pas d'étiquette inventée :
+mesurer les règles contre leurs propres sorties n'aurait aucun sens.
+
+### Tests et vérifications
+
+- 10 tests ML sur données synthétiques : exclusions, découpage sans entreprise
+  commune, métriques en dollars, références, catégorie inconnue, et un test où
+  la prime simulée de `spark` (+20 %) doit être retrouvée par SHAP (et pas
+  attribuée à `python`, toujours cité avec lui).
+- DAG `ml_manuel` ; vérification des DAGs : 24/24.
+- Lint étendu à `dags/` et `scripts/` : il ne couvrait pas `dags/`, où 3 lignes
+  trop longues traînaient depuis le jour 7.
+
+### La vraie cause des lenteurs : l'hôte Windows pagine
+
+Symptômes du jour : construction de l'image 28 min, lecture Spark de Silver
+13 min, scheduler Airflow figé **6 min 17 s** sur un simple import Python
+(« Heartbeat recovered after 376.79 seconds », pile obtenue avec py-spy), puis
+le run de validation de `ml_manuel` **échoué deux fois** : le superviseur de
+tâche n'obtient pas de réponse de l'API d'Airflow à temps (`httpx.ReadTimeout`)
+et est tué avant même de lancer le conteneur.
+
+Mesures côté **Windows** (pas dans la VM, ce que j'avais fait au jour 7) :
+
+- RAM physique 7,8 Go, **0,4 à 0,6 Go libres** ; mémoire engagée 14,4 Go ;
+  fichier d'échange : 3,5 Go utilisés (pic 4,7 Go) ;
+- **1 100 à 3 900 pages lues sur disque par seconde**, disque occupé à ~51 % ;
+- la VM Docker n'a que 2,1 Go résidents alors qu'elle en utilise ~5 Go : le
+  reste est paginé par Windows. Chaque accès mémoire de la VM peut devenir une
+  lecture disque.
+- VS Code : 1,46 Go à lui seul.
+
+Conclusion : 5,5 Go donnés à Docker sur un PC de 7,8 Go ne laissent pas assez à
+Windows. C'est l'explication la plus solide, à ce jour, de la régression des
+jours 6-7 (920 s contre 350 s) : l'hypothèse mémoire avait été « réfutée » en
+regardant seulement **dans** la VM. Leçon : mesurer la pression mémoire de
+l'hôte, pas seulement celle de l'invité.
+
+Mesures prises : MLflow allégé de 1,35 Go ; relecture des DAGs toutes les 120 s
+au lieu de 30 (mesuré : ~32 % d'un coeur en continu, D50). Le reste est un choix
+d'utilisation du PC (voir le compte rendu du jour 8).
+
+### Arrêts de processus PostgreSQL : ce que la journalisation a montré
+
+10 arrêts au total (2 le 16 ; le 17 à 13:50, 14:13, 14:18, 14:41, 16:20, 16:25,
+16:27 et 16:32 UTC), tous pendant des pics de charge ;
+PostgreSQL redémarre seul, le scheduler et le processeur de DAGs Airflow le
+suivent. Avec la journalisation des connexions (D51), les 4 arrêts de 16:20 à
+16:32 UTC ont montré que **les processus fautifs n'avaient même pas journalisé
+« connection received »** : ils meurent dans les premières millisecondes, avant
+l'authentification ; l'un d'eux sur `SIGPIPE` (écriture vers un client parti).
+
+Hypothèse la plus cohérente (non démontrée) : sur un hôte qui pagine, un processus
+serveur naissant démarre plus lentement que le client n'attend ; le contrôle de
+santé `pg_isready`, tué par Docker après 5 s, en est le premier candidat (toutes
+les 10 s). Le client parti, le processus naissant meurt, et PostgreSQL traite
+cette mort comme un crash. Atténuation : contrôle toutes les 30 s avec 30 s de
+délai. La journalisation reste active pour vérifier si les arrêts cessent.
+
+### Conséquence vécue : le run de 18:00 parti avec 13 min de retard
+
+Après l'arrêt de 16:27, le scheduler a redémarré puis s'est figé **35 minutes**
+(aucun battement de coeur) : à 17:08 UTC, le run de 18:00 n'existait pas.
+Scheduler redémarré à la main ; il a aussitôt créé le run manqué, qui a réussi
+(collecte 23 s, Silver 193 s, Gold 44 s, tout à la 1re tentative). Sans
+intervention, ce run aurait été perdu : le contrôle de santé Docker voit le
+scheduler « unhealthy » mais **Docker ne redémarre pas un conteneur malsain**
+(seulement un conteneur arrêté). Piste pour le jour 9 : un redémarrage
+automatique sur santé dégradée.
+
+### Validation finale par Airflow
+
+Le run `ml_manuel` (après allègement de MLflow et reprise de PostgreSQL) a réussi
+à la 1re tentative en **8 min 32 s** (contre 23 min en exécution directe dans
+l'après-midi, sur un hôte plus saturé) : mêmes métriques pour la 3e fois, version
+2 du modèle au registre, `gold.prime_salariale_tech` rattachée au nouveau run, et
+plus aucun avertissement de signature ni de déduction des dépendances.

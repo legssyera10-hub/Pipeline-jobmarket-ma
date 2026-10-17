@@ -4,16 +4,17 @@ Pipeline en architecture médaillon (Bronze → Silver → Gold) qui collecte de
 d'emploi tech, les nettoie avec PySpark, contrôle leur qualité et publie des agrégats
 analytiques dans PostgreSQL.
 
-> 🚧 En construction — jour 7/10 : le pipeline tourne **tous les jours à 14:00 et
+> 🚧 En construction — jour 8/10 : le pipeline tourne **tous les jours à 14:00 et
 > 18:00** (Airflow), relançable sans doublon, avec alertes Telegram. Deux sources :
 > offres réelles au Maroc (API publiques de recrutement) et dataset Kaggle de
-> développement. À venir : ML, CI, tableau de bord.
+> développement. Couche ML suivie dans MLflow (salaire, technologies, familles de
+> poste). À venir : CI, tableau de bord.
 
 ## Stack
 
 Python 3.11 · PySpark 3.5 · Airflow 3.3 · Great Expectations 1.24 · MinIO (stockage
-objet S3) · PostgreSQL 16 · Docker Compose · Telegram (alertes) · pytest · ruff ·
-black — à venir : MLflow
+objet S3) · PostgreSQL 16 · MLflow 3.17 · LightGBM · SHAP · scikit-learn · Docker
+Compose · Telegram (alertes) · pytest · ruff · black
 
 ## Architecture
 
@@ -33,6 +34,9 @@ dataset Kaggle ─────────────┤
              │  agrégations (recalcul complet)
              ▼
            gold_staging ──► transaction ──► gold.* (PostgreSQL) ──► Power BI
+             │                                ▲
+             └─► ML (LightGBM, SHAP) ─────────┘ gold.prime_salariale_tech
+                 runs, modèles, graphiques ──► MLflow (PostgreSQL + MinIO)
 
 Airflow (14:00 et 18:00, heure du Maroc) : chaque étape = un conteneur jobmarket-app
 Échec définitif ou rétablissement ──► alerte Telegram
@@ -46,7 +50,7 @@ Spark tournent dans le conteneur `app`.
 ```bash
 cp .env.example .env              # mots de passe, secrets Airflow, Telegram (voir le fichier)
 docker compose --profile tools build app
-docker compose up -d              # MinIO, PostgreSQL, Airflow (http://localhost:8080)
+docker compose up -d              # MinIO, PostgreSQL, Airflow, MLflow
 docker compose run --rm app python -m scripts.check_infra   # 6/6 contrôles OK attendus
 docker compose run --rm --no-deps app pytest -v
 ```
@@ -57,6 +61,7 @@ docker compose run --rm --no-deps app pytest -v
 | API S3 MinIO    | http://localhost:9000           | voir `.env`         |
 | PostgreSQL      | `localhost:5432`, base `jobmarket` | voir `.env`      |
 | Airflow         | http://localhost:8080 (ce PC uniquement) | aucun (local) |
+| MLflow          | http://localhost:5000 (ce PC uniquement) | aucun (local) |
 
 ## Sources
 
@@ -179,6 +184,7 @@ docker compose run --rm --no-deps app python -m scripts.check_gold
 | `gold.offres_par_ville` | mois x ville x état x famille de poste |
 | `gold.experience_demandee` | famille de poste x tranche d'expérience, part dans la famille |
 | `gold.cooccurrence_tech` | paires de technologies : offres communes, Jaccard, lift |
+| `gold.prime_salariale_tech` | effet associé de chaque technologie sur le salaire (modèle ML, dataset US) |
 
 `nb_offres` compte les offres uniques (hors republications), `nb_annonces` toutes les
 annonces. Le recalcul est complet, écrit dans `gold_staging` puis basculé en une seule
@@ -191,6 +197,7 @@ des tables identiques (empreintes MD5 comparées).
 |---|---|---|
 | `ats_maroc_quotidien` | **14:00** et **18:00**, heure du Maroc | choisir → collecte → bronze → silver → gold |
 | `kaggle_manuel` | à la demande | bronze → silver → gold (retraitement du dataset) |
+| `ml_manuel` | à la demande | modèle de salaire : entraînement, MLflow, SHAP, imputation |
 
 - **Chaque tâche est un conteneur `jobmarket-app`**, la même image que les tests.
   Airflow ne fait qu'ordonnancer : aucune dépendance du pipeline n'est installée
@@ -212,10 +219,68 @@ des tables identiques (empreintes MD5 comparées).
 # Rejouer un jour sans rappeler les API (les réponses brutes sont conservées) :
 docker compose exec airflow-scheduler airflow dags trigger ats_maroc_quotidien \
     --conf '{"collecter": false, "date": "2026-10-16"}'
-# Vérifier les DAGs (19 contrôles, exécutés dans l'image Airflow) :
+# Vérifier les DAGs (24 contrôles, exécutés dans l'image Airflow) :
 docker compose run --rm --no-deps -v ./tests/airflow:/opt/airflow/verif \
     airflow-scheduler python /opt/airflow/verif/verifier_dags.py
 ```
+
+Sous Git Bash (Windows), préfixer par `MSYS_NO_PATHCONV=1` et remplacer
+`./tests/airflow` par `"$(pwd -W)/tests/airflow"`.
+
+## Couche ML (MLflow)
+
+### Estimation du salaire
+
+```bash
+docker compose run --rm app python -m src.ml.salaire     # ou le DAG ml_manuel
+```
+
+**Données : le dataset américain (USD), pas le Maroc.** Aucune des 37 offres
+marocaines ne publie de salaire : un modèle marocain ne peut être ni entraîné ni
+évalué. Le modèle décrit le marché du dataset de développement et n'est jamais
+appliqué aux offres marocaines.
+
+- Cible : log du milieu de la fourchette ; salaires en anomalie, devises non USD et
+  republications exclus.
+- Découpage **par entreprise** (`GroupShuffleSplit`) : le test ne contient que des
+  entreprises jamais vues, sinon les annonces quasi identiques d'une même
+  entreprise gonfleraient le score.
+- 5 configurations suivies dans MLflow ; la meilleure est enregistrée dans le
+  registre (`salaire_annuel_usd`), au format `skops` (sans pickle).
+
+| Configuration (test : 7 523 offres, 2 033 entreprises inconnues) | MAE | Erreur médiane | R² (log) |
+|---|---|---|---|
+| Médiane globale (référence) | 42 341 $ | 33 280 $ (40 %) | 0,00 |
+| Médiane par famille × niveau (référence) | 34 342 $ | 23 420 $ (29 %) | 0,26 |
+| LightGBM sans titre | 30 289 $ | 19 859 $ (26 %) | 0,44 |
+| LightGBM avec titre (TF-IDF → SVD) | 25 588 $ | 15 459 $ (20 %) | 0,58 |
+| **LightGBM avec titre, régularisé (retenu)** | **25 198 $** | **15 178 $ (19 %)** | **0,59** |
+
+Soit **−27 % d'erreur** par rapport à la meilleure référence naïve. Le titre est la
+variable qui apporte le plus. 80 940 salaires manquants sont estimés dans
+`ml/predictions/salaire/` (médiane 74 600 $).
+
+**Technologies et salaire (SHAP)** — effet moyen sur les offres qui citent la
+technologie, à famille, niveau, lieu et titre comparables (au moins 50 offres
+d'entraînement) : Python +8,9 %, GCP +8,3 %, SAS +5,8 %, Linux +4,2 % ; Excel
+−3,2 %, WordPress −6,7 %. **C'est une association, pas un effet causal** : apprendre
+Python ne fait pas gagner 8,9 %. Les 74 technologies sont dans
+`gold.prime_salariale_tech`, avec le `mlflow_run_id` du modèle.
+
+### Familles de poste : règles contre modèles
+
+Les familles viennent aujourd'hui de règles sur le titre. Pour les mesurer, puis les
+comparer à TF-IDF + régression logistique (et sentence-transformers), il faut une
+**vérité terrain annotée à la main** : entraîner un modèle sur les sorties des règles
+ne lui apprendrait qu'à les imiter.
+
+```bash
+docker compose run --rm app python -m src.ml.classification echantillon  # 402 offres
+# annoter data/annotation/familles.csv (guide : docs/guide_annotation.md)
+docker compose run --rm --no-deps app python -m src.ml.classification evaluer
+```
+
+*Résultats : en attente de l'annotation (au moins 150 offres).*
 
 ## Incidents et résilience
 
@@ -250,14 +315,15 @@ une API ne donne que l'état du jour. Le parsing, lui, peut toujours être rejou
 src/ingestion/    collecteurs, collecte des API (ats/), écriture Bronze
 src/transform/    jobs PySpark Silver / Gold
 src/quality/      règles de quarantaine, suites Great Expectations
+src/ml/           modèle de salaire (LightGBM, SHAP), classification des familles
 src/utils/        config (.env), SparkSession (s3a + JDBC), client S3, PostgreSQL
 sql/              schéma PostgreSQL (gold, gold_staging, ops), idempotent
 scripts/          scripts opérationnels (check_*, explore, purge, annotation)
 dags/             DAGs Airflow (+ commun.py : tâche = conteneur, alertes)
 reference/        référentiels (technologies, états US, villes marocaines, employeurs)
 tests/            tests unitaires (+ fixtures)
-docker/           Dockerfile de l'image app, init SQL PostgreSQL
-docs/             décisions d'architecture, journal
+docker/           Dockerfiles (app, Airflow, MLflow), init SQL PostgreSQL
+docs/             décisions d'architecture, journal, guide d'annotation
 ```
 
 ## Décisions et compromis

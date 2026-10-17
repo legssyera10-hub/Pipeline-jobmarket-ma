@@ -82,3 +82,16 @@ ALTER TABLE gold.cooccurrence_tech DROP CONSTRAINT IF EXISTS cooccurrence_tech_c
 ALTER TABLE gold.cooccurrence_tech DROP CONSTRAINT IF EXISTS cooccurrence_tech_ordre;
 ALTER TABLE gold.cooccurrence_tech
     ADD CONSTRAINT cooccurrence_tech_ordre CHECK (tech_a COLLATE "C" < tech_b COLLATE "C");
+
+-- Effet associé de chaque technologie sur le salaire (modèle ML, jour 8).
+-- SHAP moyen sur les offres qui citent la technologie, à profil comparable :
+-- une ASSOCIATION, pas un effet causal. Dataset US : salaires en USD.
+CREATE TABLE IF NOT EXISTS gold.prime_salariale_tech (
+    source         TEXT    NOT NULL,
+    technologie    TEXT    NOT NULL,
+    nb_offres      INTEGER NOT NULL,   -- offres d'entraînement citant la technologie
+    effet_pct      DOUBLE PRECISION NOT NULL,  -- +10 = salaire estimé ~10 % plus élevé
+    shap_moyen_log DOUBLE PRECISION NOT NULL,
+    mlflow_run_id  TEXT    NOT NULL,   -- traçabilité : quel modèle a produit ces chiffres
+    PRIMARY KEY (source, technologie)
+);

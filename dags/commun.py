@@ -9,14 +9,14 @@ l'image Airflow, donc aucun conflit de versions possible.
 from __future__ import annotations
 
 import os
-from datetime import timedelta
-
 import re
+from datetime import timedelta
 
 import requests
 from airflow.providers.docker.exceptions import DockerContainerFailedException
 from airflow.providers.docker.operators.docker import DockerOperator
 from airflow.sdk.exceptions import AirflowFailException
+
 from docker.types import Mount
 
 IMAGE = "jobmarket-app:dev"
@@ -35,8 +35,12 @@ FORWARDED = [
 def job_environment() -> dict[str, str]:
     env = {k: os.environ[k] for k in FORWARDED if os.environ.get(k)}
     # Dans le réseau Docker, les services se joignent par leur nom
-    env.update(MINIO_ENDPOINT="http://minio:9000", POSTGRES_HOST="postgres",
-               POSTGRES_PORT="5432")  # fmt: skip
+    env.update(
+        MINIO_ENDPOINT="http://minio:9000",
+        POSTGRES_HOST="postgres",
+        POSTGRES_PORT="5432",
+        MLFLOW_TRACKING_URI="http://mlflow:5000",
+    )
     return env
 
 
@@ -104,12 +108,17 @@ def _send(text: str) -> None:
         print(f"[alerte] envoi Telegram impossible : {type(exc).__name__}")
 
 
+def envoyer_information(text: str) -> None:
+    """Message informatif (pas un échec) : ex. exécution en retard, collecte sautée."""
+    _send(text)
+
+
 def _where(context) -> str:
-    ti = context["task_instance"]
+    ti, run_id = context["task_instance"], context.get("run_id")
     return (
         f"DAG : {ti.dag_id}\nTâche : {ti.task_id}\n"
-        f"Exécution : {context.get('run_id')}\n"
-        f"Journal : {UI}/dags/{ti.dag_id}/runs/{context.get('run_id')}/tasks/{ti.task_id}"
+        f"Exécution : {run_id}\n"
+        f"Journal : {UI}/dags/{ti.dag_id}/runs/{run_id}/tasks/{ti.task_id}"
     )
 
 

@@ -25,14 +25,14 @@ from datetime import timedelta
 import pendulum
 from airflow.sdk import DAG, Param, task
 from airflow.timetables.trigger import CronTriggerTimetable
-from commun import DEFAULT_ARGS, job
+from commun import DEFAULT_ARGS, envoyer_information, job
 
 TZ = "Africa/Casablanca"
 DAY = "{{ params.date or ds }}"
 
 with DAG(
     dag_id="ats_maroc_quotidien",
-    description="Offres au Maroc (API Greenhouse/Lever) : collecte -> Bronze -> Silver -> Gold",
+    description="Offres au Maroc (Greenhouse/Lever) : collecte, Bronze, Silver, Gold",
     schedule=CronTriggerTimetable("0 14,18 * * *", timezone=TZ),
     start_date=pendulum.datetime(2026, 10, 16, tz=TZ),
     catchup=False,  # une API ne rend pas le passé : pas de rattrapage historique
@@ -49,11 +49,28 @@ with DAG(
 ) as dag:
 
     @task.branch
-    def choisir(params=None) -> str:
-        """Collecte réseau seulement pour la vraie source et si demandée."""
-        if params["collecter"] and params["source"] == "ats_maroc":
-            return "collecte"
-        return "bronze"
+    def choisir(params=None, ds=None, run_id=None) -> str:
+        """Collecte réseau seulement pour la vraie source, si demandée, et si la date
+        traitée est AUJOURD'HUI : une API ne rend pas le passé.
+
+        Cas réel (17 octobre) : le PC était éteint à 18:00 ; au redémarrage, Airflow a
+        lancé le rattrapage du 16 le 17, la collecte l'a refusé (code 2) et une
+        fausse alerte d'échec est partie. Désormais : information, puis parsing rejoué
+        (sans effet si la journée avait été collectée à 14:00).
+        """
+        if not (params["collecter"] and params["source"] == "ats_maroc"):
+            return "bronze"
+        day = params["date"] or ds
+        today = pendulum.now("UTC").to_date_string()
+        if day != today:
+            envoyer_information(
+                f"ℹ️ JobMarket MA : exécution en retard ({run_id}).\n"
+                f"La collecte du {day} n'est plus possible le {today} (une API ne "
+                "rend que l'état du jour) : collecte sautée, parsing rejoué à partir "
+                "des réponses brutes déjà stockées."
+            )
+            return "bronze"
+        return "collecte"
 
     collecte = job(
         "collecte",

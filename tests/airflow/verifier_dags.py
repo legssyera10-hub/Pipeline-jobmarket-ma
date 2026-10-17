@@ -43,8 +43,14 @@ def main() -> int:
     if bag.import_errors:
         print(bag.import_errors)
     check(
-        "2 DAGs chargés", set(bag.dag_ids) == {"ats_maroc_quotidien", "kaggle_manuel"}
+        "3 DAGs chargés",
+        set(bag.dag_ids) == {"ats_maroc_quotidien", "kaggle_manuel", "ml_manuel"},
     )
+    ml = bag.get_dag("ml_manuel")
+    check("ml_manuel : non planifié", type(ml.timetable).__name__ == "NullTimetable")
+    check("ml_manuel : commande du modèle de salaire",
+          [x.pool for x in ml.tasks] == ["spark"]
+          and ml.tasks[0].command.startswith("python -m src.ml.salaire"))  # fmt: skip
 
     dag = bag.get_dag("ats_maroc_quotidien")
     t = {task.task_id: task for task in dag.tasks}
@@ -109,6 +115,25 @@ def main() -> int:
         demo
         == "python -m src.transform.silver --source ats_maroc_demo --date 2026-10-15",
     )
+
+    # Branchement : collecte seulement pour la date du jour (rattrapage en retard)
+    import commun
+
+    sent: list[str] = []
+    commun._send = sent.append  # pas de vrai message Telegram pendant la vérification
+    choisir = t["choisir"].python_callable
+    today = pendulum.now("UTC").to_date_string()
+    late = choisir(params=params, ds="2026-10-16", run_id="scheduled__x")
+    check("run en retard : collecte sautée, information envoyée",
+          late == "bronze" and len(sent) == 1 and "en retard" in sent[0])  # fmt: skip
+    check(
+        "run du jour : collecte",
+        choisir(params=params, ds=today, run_id="r") == "collecte",
+    )
+    demo = {"source": "ats_maroc_demo", "collecter": True, "date": None}
+    branch = choisir(params=demo, ds=today, run_id="r")
+    check("source de démonstration : jamais de collecte",
+          branch == "bronze" and len(sent) == 1)  # fmt: skip
 
     kaggle = bag.get_dag("kaggle_manuel")
     check(

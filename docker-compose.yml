@@ -30,6 +30,9 @@ x-airflow-common: &airflow-common
     # Usage local uniquement (port lié à 127.0.0.1) : pas d'écran de connexion
     AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "true"
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
+    # Relecture des fichiers de DAGs toutes les 120 s (défaut 30 s) : 3 fichiers qui
+    # changent rarement ; mesuré au jour 8 : ~32 % d'un coeur en continu à 30 s.
+    AIRFLOW__DAG_PROCESSOR__MIN_FILE_PROCESS_INTERVAL: "120"
   # Groupe 0 : accès à /var/run/docker.sock pour lancer les conteneurs de jobs
   user: "${AIRFLOW_UID:-50000}:0"
   volumes:
@@ -82,13 +85,22 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?définir POSTGRES_PASSWORD dans .env}
       POSTGRES_DB: ${POSTGRES_DB:-jobmarket}
     ports: ["5432:5432"]
+    # Diagnostic (jour 8) : des processus serveur s'arrêtent parfois avec le code 2
+    # sous forte charge, sans message. Journaliser chaque connexion avec son
+    # application permet de relier le PID fautif à son client (Airflow, MLflow, job).
+    command: >
+      postgres -c log_connections=on
+      -c log_line_prefix='%m [%p] %q%a@%d '
     volumes:
       - pg_data:/var/lib/postgresql/data
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB:-jobmarket}"]
-      interval: 10s
-      timeout: 5s
+      # 30 s / 30 s (et non 10 s / 5 s) : sur un hôte qui pagine, un contrôle tué au
+      # bout de 5 s laissait un processus serveur naissant face à un client parti ;
+      # PostgreSQL traitait sa mort comme un crash et redémarrait tout (journal, j. 8).
+      interval: 30s
+      timeout: 30s
       retries: 5
     restart: unless-stopped
 
@@ -107,6 +119,7 @@ services:
       MINIO_ENDPOINT: http://minio:9000
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
+      MLFLOW_TRACKING_URI: http://mlflow:5000
     volumes: [".:/app"]
     working_dir: /app
     depends_on:
@@ -115,7 +128,7 @@ services:
 
   # --- Airflow ----------------------------------------------------------------------
 
-  # Crée la base de métadonnées d'Airflow dans le PostgreSQL existant (idempotent)
+  # Crée les bases `airflow` et `mlflow` dans le PostgreSQL existant (idempotent)
   airflow-db-init:
     image: postgres:16
     environment:
@@ -125,13 +138,46 @@ services:
       PGDATABASE: ${POSTGRES_DB:-jobmarket}
     entrypoint: >
       bash -c "
-      psql -tAc \"SELECT 1 FROM pg_database WHERE datname = 'airflow'\" | grep -q 1
-      || psql -c 'CREATE DATABASE airflow';
-      echo 'base airflow prête'
+      for db in airflow mlflow; do
+      psql -tAc \"SELECT 1 FROM pg_database WHERE datname = '$$db'\" | grep -q 1
+      || psql -c \"CREATE DATABASE $$db\";
+      done;
+      echo 'bases airflow et mlflow prêtes'
       "
     depends_on:
       postgres: { condition: service_healthy }
     restart: "no"
+
+  # Suivi des expériences ML (jour 8) : http://localhost:5000
+  mlflow:
+    build:
+      context: .
+      dockerfile: docker/mlflow.Dockerfile
+    image: jobmarket-mlflow:3.17.1
+    environment:
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      # Jobs serveur (évaluation GenAI, scoring en ligne, archivage de traces) :
+      # inutilisés ici, 7 processus huey et ~1,35 Go de RAM sur un PC qui en manque.
+      MLFLOW_SERVER_ENABLE_JOB_EXECUTION: "false"
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+    command: >
+      mlflow server --host 0.0.0.0 --port 5000 --workers 1
+      --backend-store-uri postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/mlflow
+      --artifacts-destination s3://${MINIO_BUCKET:-jobmarket}/mlflow
+      --serve-artifacts
+      --allowed-hosts "mlflow,mlflow:5000,localhost,localhost:5000,127.0.0.1:5000"
+    ports: ["127.0.0.1:5000:5000"]  # interface accessible depuis ce PC uniquement
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      airflow-db-init: { condition: service_completed_successfully }
+      minio: { condition: service_healthy }
+    restart: unless-stopped
 
   # Migre le schéma d'Airflow et crée le pool "spark" (1 seul job Spark à la fois)
   airflow-init:

@@ -458,3 +458,118 @@ Rédigé au moment de la décision, pas après.
   `{"source": "ats_maroc_demo", "collecter": false}`, puis tout est nettoyé
   (MinIO et Gold). Le même code et le même DAG sont exercés que pour la vraie
   source.
+
+## D43 — Serveur MLflow dédié, métadonnées PostgreSQL, artefacts MinIO (jour 8)
+
+- **Raison :** un fichier `mlruns/` local ne survit pas aux conteneurs jetables
+  (`docker compose run --rm`) et n'est pas visible depuis Airflow. Le service
+  `mlflow` (image `jobmarket-mlflow:3.17.1`) stocke les runs dans la base
+  PostgreSQL `mlflow` (créée par `airflow-db-init`) et les artefacts (modèles,
+  graphiques) dans `s3://jobmarket/mlflow`. `--serve-artifacts` : les clients
+  passent par le serveur, ils n'ont pas besoin des identifiants MinIO pour cela.
+  Les jobs n'embarquent que `mlflow-skinny` (client léger).
+- **Piège rencontré :** avec SQLAlchemy 2.1, `postgresql://` désigne le pilote
+  `psycopg` 3, absent de l'image -> adresse explicite `postgresql+psycopg2://`.
+- **Sécurité :** port publié sur `127.0.0.1` seulement ; `--allowed-hosts`
+  restreint les en-têtes Host acceptés (protection contre le DNS rebinding).
+
+## D44 — Modèle de salaire entraîné sur le dataset américain, dit tel quel (jour 8)
+
+- **Constat :** 0 offre marocaine sur 37 publie un salaire. Impossible d'entraîner
+  ou d'évaluer un modèle de salaire marocain.
+- **Choix :** entraîner sur `kaggle_linkedin` (USD), le documenter partout
+  (docstring, table Gold `source`, graphique titré « dataset US ») et ne jamais
+  appliquer ce modèle aux offres marocaines : des dollars américains n'ont aucun
+  sens pour le marché marocain.
+- **Variables :** seulement celles disponibles aussi quand le salaire manque
+  (sinon l'imputation serait impossible) ; les salaires en anomalie (jour 5) et
+  les republications sont exclus ; cible = log du milieu de fourchette (erreurs
+  relatives, distribution asymétrique).
+
+## D45 — Découpage entraînement/test par entreprise (jour 8)
+
+- **Raison :** une même entreprise publie des dizaines d'annonces quasi
+  identiques au même salaire. Un découpage aléatoire en mettrait des deux côtés
+  et le modèle « reconnaîtrait » l'annonce : score gonflé. `GroupShuffleSplit`
+  par `entreprise_normalisee` mesure la capacité à estimer le salaire d'une
+  entreprise jamais vue.
+
+## D46 — Deux références naïves avant tout modèle (jour 8)
+
+- **Raison :** une MAE seule ne dit rien. Les 5 configurations suivies dans
+  MLflow : médiane globale, médiane par famille × niveau, puis LightGBM sans
+  titre, avec titre (TF-IDF -> SVD 30), avec titre et régularisation. Le gain de
+  LightGBM se lit par rapport à la médiane par famille × niveau.
+
+## D47 — SHAP : effet ASSOCIÉ des technologies, pas un effet causal (jour 8)
+
+- **Méthode :** valeur SHAP moyenne de l'indicatrice `tech_<nom>` sur les offres
+  de test qui citent la technologie ; `effet_pct = exp(shap) - 1`. Une
+  technologie citée par moins de 50 offres d'entraînement est écartée (bruit).
+- **Limite assumée :** « Spark +8 % » signifie que, dans ce modèle, à famille,
+  niveau, lieu et titre comparables, les offres citant Spark sont estimées 8 %
+  plus haut que l'offre moyenne. Cela ne veut pas dire qu'apprendre Spark fait
+  gagner 8 %. Le graphique et la table Gold le rappellent.
+- **Traçabilité :** chaque ligne de `gold.prime_salariale_tech` porte le
+  `mlflow_run_id` du modèle qui l'a produite.
+
+## D48 — Classification : vérité terrain annotée à la main, pas les règles (jour 8)
+
+- **Raison :** entraîner un classifieur sur les étiquettes des règles regex lui
+  apprendrait à imiter ces règles ; mesurer les règles contre elles-mêmes
+  donnerait 100 %. Il faut des étiquettes humaines.
+- **Outil :** `python -m src.ml.classification echantillon` tire 402 offres
+  (les 37 marocaines + 65 par famille tech + 40 « AUTRE » du dataset US),
+  stratifiées sur la prédiction des règles, puis mélangées ; le fichier ne montre
+  pas la prédiction (pas d'ancrage). `evaluer` compare règles, TF-IDF +
+  régression logistique (validation croisée stratifiée) et, si installé,
+  sentence-transformers multilingue ; F1 macro suivi dans MLflow.
+- **Limite :** l'échantillon est stratifié, pas représentatif. Les scores
+  mesurent la séparation des familles, pas l'exactitude sur la population.
+- **Différé :** `sentence-transformers` (+ PyTorch, ~1 Go) n'est pas installé
+  tant qu'il n'y a pas d'annotations pour l'évaluer.
+
+## D49 — LightGBM et OpenMP dans une couche Docker séparée (jour 8)
+
+- **Raison :** LightGBM exige `libgomp1`. L'ajouter à la première commande
+  `apt-get` aurait invalidé le cache de la couche pip (28 min de reconstruction
+  sur cette machine) ; une couche dédiée après pip s'est construite en 11 s.
+
+## D50 — Relecture des DAGs toutes les 120 s (jour 8)
+
+- **Mesure :** sur 60 s (compteur CPU du cgroup, pas l'instantané de
+  `docker stats`, trompeur : il affichait 450 à 1 200 % lors des pics), le
+  processeur de DAGs consommait ~32 % d'un coeur en continu pour relire 3
+  fichiers toutes les 30 s.
+- **Choix :** `min_file_process_interval=120`. Contrepartie : une modification
+  de DAG apparaît dans l'interface après 2 min au plus.
+
+## D51 — Journalisation des connexions PostgreSQL, à titre de diagnostic (jour 8)
+
+- **Constat :** un processus serveur PostgreSQL s'arrête parfois avec le code 2,
+  sans message (2 fois le 16/10, 8 fois le 17/10, toujours sous forte charge).
+  PostgreSQL redémarre seul en moins d'une minute ; le scheduler et le processeur
+  de DAGs Airflow perdent leur base et redémarrent (le planificateur reprend
+  ensuite normalement). La mémoire n'est pas en cause (2,1 Go disponibles,
+  swap quasi vide au moment de l'arrêt).
+- **Choix :** `log_connections=on` et le nom de l'application dans chaque ligne,
+  pour relier le PID du prochain arrêt à son client. Résultat : les processus
+  fautifs meurent **avant** même de journaliser leur connexion (l'un sur
+  `SIGPIPE`). Hypothèse retenue, non démontrée : un client (d'abord le contrôle
+  de santé, tué après 5 s) raccroche avant que le processus naissant ait démarré
+  sur un hôte qui pagine. Atténuation : contrôle de santé à 30 s / 30 s. À
+  retirer une fois les arrêts disparus (une ligne par connexion).
+
+## D52 — Jobs serveur de MLflow désactivés ; la mémoire de l'hôte d'abord (jour 8)
+
+- **Constat :** le PC a 7,8 Go de RAM ; Docker en reçoit 5,5 Go. Côté Windows :
+  0,4 à 0,6 Go libres, 3,5 Go dans le fichier d'échange, 1 100 à 3 900 pages lues
+  par seconde. La VM Docker est elle-même paginée par Windows : un import Python
+  a figé le scheduler 6 min, et le superviseur des tâches Airflow a dépassé ses
+  délais (run `ml_manuel` échoué deux fois avant de lancer son conteneur).
+- **Choix :** `MLFLOW_SERVER_ENABLE_JOB_EXECUTION=false` (7 processus `huey` pour
+  des fonctions GenAI inutilisées : 1,65 Go -> 421 Mo).
+- **Hors du code :** fermer les applications lourdes pendant les traitements, ou
+  réduire la mémoire de Docker ; c'est un arbitrage d'utilisation du PC, laissé à
+  son propriétaire. Leçon de méthode : la pression mémoire se mesure sur l'hôte,
+  pas seulement dans la VM.
