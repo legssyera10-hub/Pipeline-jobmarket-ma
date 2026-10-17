@@ -39,6 +39,8 @@ x-airflow-common: &airflow-common
     - ./dags:/opt/airflow/dags
     - ./logs/airflow:/opt/airflow/logs
     - /var/run/docker.sock:/var/run/docker.sock
+    # Contrôle de santé qui redémarre un service figé (Docker ne le fait pas)
+    - ./docker/airflow/autoheal.py:/opt/airflow/autoheal.py:ro
   restart: unless-stopped
   depends_on: &airflow-depends
     airflow-init: { condition: service_completed_successfully }
@@ -197,9 +199,11 @@ services:
     command: api-server
     ports: ["127.0.0.1:8080:8080"]  # interface accessible depuis ce PC uniquement
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/monitor/health"]
+      # Les tâches parlent à l'api-server : figé, il les fait échouer (jour 8)
+      test: ["CMD", "python", "/opt/airflow/autoheal.py",
+             "http://localhost:8080/api/v2/monitor/health", "api-server"]
       interval: 30s
-      timeout: 10s
+      timeout: 30s
       retries: 5
       start_period: 60s
 
@@ -207,9 +211,11 @@ services:
     <<: *airflow-common
     command: scheduler
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
+      # Figé 35 min au jour 8 : redémarré après 6 échecs (~3 min), voir autoheal.py
+      test: ["CMD", "python", "/opt/airflow/autoheal.py",
+             "http://localhost:8974/health", "scheduler"]
       interval: 30s
-      timeout: 10s
+      timeout: 30s
       retries: 5
       start_period: 60s
 

@@ -575,3 +575,23 @@ Rédigé au moment de la décision, pas après.
   réduire la mémoire de Docker ; c'est un arbitrage d'utilisation du PC, laissé à
   son propriétaire. Leçon de méthode : la pression mémoire se mesure sur l'hôte,
   pas seulement dans la VM.
+
+## D53 — Contrôle de santé auto-réparateur pour le scheduler et l'api-server (avant jour 9)
+
+- **Constat :** Docker ne redémarre jamais un conteneur « unhealthy », seulement un
+  conteneur arrêté. Le scheduler figé 35 min au jour 8 serait resté figé
+  indéfiniment, et les runs planifiés avec lui.
+- **Écarté :** un conteneur tiers « autoheal » piloté par le socket Docker (image
+  externe de plus, avec tout pouvoir sur Docker).
+- **Choix :** `docker/airflow/autoheal.py`, exécuté comme contrôle de santé
+  (bibliothèque standard uniquement). 6 échecs consécutifs (~3 min) après 5 min
+  de grâce au démarrage -> `SIGTERM` au processus 1, puis `SIGKILL` des processus
+  du service au contrôle suivant ; `restart: unless-stopped` relance le conteneur ;
+  alerte Telegram une fois le service de nouveau sain. État dans le volume des
+  journaux (survit au redémarrage), compteur remis à zéro à chaque nouvelle vie
+  du conteneur.
+- **Vérifié en réel :** scheduler gelé (`SIGSTOP`) à 20:04:52 -> `SIGTERM` à
+  20:07:53 (sans effet sur un processus gelé, comme prévu) -> `SIGKILL` ->
+  redémarré et sain à 20:08:56 : **4 min au lieu de 35**, sans intervention.
+- **Non couvert :** le processeur de DAGs (il se termine de lui-même quand il perd
+  sa base, il ne s'est pas figé) ; MLflow (non critique pour les runs planifiés).

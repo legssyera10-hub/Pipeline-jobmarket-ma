@@ -135,7 +135,7 @@ typée et enrichie.
 | Chiffres (run complet) | |
 |---|---|
 | Offres Bronze -> Silver | 123 849 -> 123 848 valides + 1 rejet, `offre_id` unique |
-| Durée (dataset complet) | 350 s au jour 5, 908-920 s au jour 6 : régression en cours d'analyse (journal, jour 6) ; `ats_maroc` : 43 s |
+| Durée (dataset complet) | 350 s au jour 5, 908-920 s au jour 6 : due très probablement à la pagination de l'hôte Windows à court de RAM (journal, jour 8) ; `ats_maroc` : 43 s |
 | Offres tech avec au moins une technologie détectée | 90,2 % |
 | Salaire annualisé concordant avec la source | 100 % (29 % des offres ont un salaire) |
 | Précision de l'extraction des technologies | *à mesurer : 100 offres à annoter* |
@@ -214,6 +214,11 @@ des tables identiques (empreintes MD5 comparées).
 - **Alertes Telegram** : échec définitif (avec les dernières lignes du log) et
   rétablissement après un échec. La collecte alerte aussi quand elle est partielle.
 - **Mémoire** : un seul job Spark à la fois (pool `spark`).
+- **Auto-réparation** : Docker ne redémarre pas un service « unhealthy ». Le
+  contrôle de santé du scheduler et de l'api-server
+  ([docker/airflow/autoheal.py](docker/airflow/autoheal.py)) arrête le conteneur
+  après ~3 min de blocage ; Docker le relance et une alerte Telegram le signale.
+  Testé en gelant le scheduler : revenu en 4 min, sans intervention.
 
 ```bash
 # Rejouer un jour sans rappeler les API (les réponses brutes sont conservées) :

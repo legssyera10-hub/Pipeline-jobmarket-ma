@@ -704,3 +704,18 @@ Le run `ml_manuel` (après allègement de MLflow et reprise de PostgreSQL) a ré
 l'après-midi, sur un hôte plus saturé) : mêmes métriques pour la 3e fois, version
 2 du modèle au registre, `gold.prime_salariale_tech` rattachée au nouveau run, et
 plus aucun avertissement de signature ni de déduction des dépendances.
+
+### Avant le jour 9 : auto-réparation et mémoire
+
+- **Auto-réparation (D53)** : testée en gelant réellement le scheduler ; retour
+  à la normale en 4 min, alerte Telegram « ♻️ redémarré automatiquement ».
+  5 tests unitaires de la logique (grâce, seuil, escalade, nouvelle vie, alerte
+  unique).
+- **Mémoire de l'hôte** : `autoMemoryReclaim=dropCache` essayé (WSL 2.3.24) ->
+  aucun effet mesuré (la VM retient toujours ~3,6 Go : le cache n'est rendu que
+  si la VM est inactive, ce qui n'arrive jamais avec Airflow). Réglage retiré.
+  Le levier efficace reste la limite de mémoire de Docker ou les applications
+  ouvertes sous Windows : choix laissé au propriétaire du PC. Repères mesurés :
+  la VM utilise ~2,0 Go au repos (après allègement de MLflow), ~3,3 Go au pic
+  d'un job ML ; 4,5 Go laisseraient ~1 Go de plus à Windows avec une marge de
+  ~1,2 Go (+ 2 Go de swap dans la VM).
