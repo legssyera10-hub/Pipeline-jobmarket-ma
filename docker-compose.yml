@@ -96,9 +96,9 @@ services:
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB:-jobmarket}"]
-      # 30 s / 30 s (et non 10 s / 5 s) : sur un hôte qui pagine, un contrôle tué au
-      # bout de 5 s laissait un processus serveur naissant face à un client parti ;
-      # PostgreSQL traitait sa mort comme un crash et redémarrait tout (journal, j. 8).
+      # 30 s / 30 s (et non 10 s / 5 s) : moins de connexions et de contrôles tués
+      # sur un hôte qui pagine. Atténuation tentée contre des arrêts de processus
+      # serveur naissants ; insuffisante seule (un arrêt de plus à 19:01, journal j. 8).
       interval: 30s
       timeout: 30s
       retries: 5

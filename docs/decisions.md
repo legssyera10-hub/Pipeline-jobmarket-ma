@@ -557,8 +557,10 @@ Rédigé au moment de la décision, pas après.
   fautifs meurent **avant** même de journaliser leur connexion (l'un sur
   `SIGPIPE`). Hypothèse retenue, non démontrée : un client (d'abord le contrôle
   de santé, tué après 5 s) raccroche avant que le processus naissant ait démarré
-  sur un hôte qui pagine. Atténuation : contrôle de santé à 30 s / 30 s. À
-  retirer une fois les arrêts disparus (une ligne par connexion).
+  sur un hôte qui pagine. Atténuation : contrôle de santé à 30 s / 30 s,
+  **insuffisante** (un arrêt de plus à 19:01) : l'hypothèse est affaiblie, la
+  pression mémoire de l'hôte reste le seul point commun établi. À retirer une
+  fois les arrêts disparus (une ligne par connexion).
 
 ## D52 — Jobs serveur de MLflow désactivés ; la mémoire de l'hôte d'abord (jour 8)
 

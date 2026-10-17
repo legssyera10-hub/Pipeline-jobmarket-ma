@@ -680,7 +680,11 @@ serveur naissant démarre plus lentement que le client n'attend ; le contrôle d
 santé `pg_isready`, tué par Docker après 5 s, en est le premier candidat (toutes
 les 10 s). Le client parti, le processus naissant meurt, et PostgreSQL traite
 cette mort comme un crash. Atténuation : contrôle toutes les 30 s avec 30 s de
-délai. La journalisation reste active pour vérifier si les arrêts cessent.
+délai. **Elle n'a pas suffi** : nouvel arrêt à 19:01 UTC (processus mort sur
+`SIGPIPE`, là encore avant d'avoir journalisé sa connexion), et le scheduler
+s'est de nouveau figé (redémarré à la main ~24 min après). L'hypothèse « contrôle
+de santé » est donc affaiblie ; le point commun de tous les arrêts reste l'hôte
+qui pagine. La journalisation reste active.
 
 ### Conséquence vécue : le run de 18:00 parti avec 13 min de retard
 
