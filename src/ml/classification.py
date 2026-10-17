@@ -40,8 +40,12 @@ EMBEDDING_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
 # --- Échantillon ---------------------------------------------------------------------
 
 
-def stratified_sample(offers: pd.DataFrame, seed: int = SEED) -> pd.DataFrame:
-    """Toutes les offres marocaines + un tirage par famille (règles) du dataset US."""
+def choose_ids(offers: pd.DataFrame, seed: int = SEED) -> list[str]:
+    """Toutes les offres marocaines + un tirage par famille (règles) du dataset US.
+
+    N'a besoin que de offre_id, source et famille_poste : le texte des offres n'est
+    chargé qu'ensuite, pour les seules offres retenues. Ordre rendu : mélangé.
+    """
     ma = offers[offers["source"] == "ats_maroc"]
     us = offers[offers["source"] != "ats_maroc"]
     parts = [ma]
@@ -49,16 +53,23 @@ def stratified_sample(offers: pd.DataFrame, seed: int = SEED) -> pd.DataFrame:
         pool = us[us["famille_poste"] == fam]
         n = N_AUTRE if fam == "AUTRE" else PAR_FAMILLE_TECH
         parts.append(pool.sample(n=min(n, len(pool)), random_state=seed))
-    sample = pd.concat(parts).sample(frac=1, random_state=seed)  # mélange
-    out = sample[
-        ["offre_id", "source", "titre_brut", "entreprise", "description"]
-    ].copy()
+    return pd.concat(parts).sample(frac=1, random_state=seed)["offre_id"].tolist()
+
+
+def format_sample(details: pd.DataFrame, ids: list[str]) -> pd.DataFrame:
+    """Fichier à annoter, dans l'ordre de `ids`, sans la prédiction des règles."""
+    cols = ["offre_id", "source", "titre_brut", "entreprise", "description"]
+    out = details.set_index("offre_id").loc[ids].reset_index()[cols]
     out["description"] = (
         out["description"].fillna("").str.replace(r"\s+", " ", regex=True).str[:1500]
     )
     out.insert(0, "num", range(1, len(out) + 1))
     out["famille_reelle"] = ""
-    return out.reset_index(drop=True)
+    return out
+
+
+def stratified_sample(offers: pd.DataFrame, seed: int = SEED) -> pd.DataFrame:
+    return format_sample(offers, choose_ids(offers, seed))
 
 
 def sample_command() -> int:
@@ -68,28 +79,31 @@ def sample_command() -> int:
     if PATH.exists():
         print(f"{PATH} existe déjà : on n'écrase pas un fichier en cours d'annotation")
         return 2
+    from pyspark.sql import functions as F
+
     s = get_settings()
     spark = get_spark("annotation_familles", s)
     try:
-        offers = (
-            spark.read.parquet(s.s3_path("silver/offres", scheme="s3a"))
-            .where(
-                "source in ('kaggle_linkedin', 'ats_maroc') and not est_republication"
-            )
-            .select(
-                "offre_id",
-                "source",
-                "titre_brut",
-                "entreprise",
-                "description",
-                "famille_poste",
-            )  # fmt: skip
-            .orderBy("offre_id")  # ordre stable avant tirage -> reproductible
+        offers = spark.read.parquet(s.s3_path("silver/offres", scheme="s3a")).where(
+            "source in ('kaggle_linkedin', 'ats_maroc') and not est_republication"
+        )
+        # 1. tirage sur les colonnes légères (ordre stable -> reproductible) ;
+        # rapatrier les 115 000 descriptions saturait le driver Spark (jour 8)
+        light = (
+            offers.select("offre_id", "source", "famille_poste")
+            .orderBy("offre_id")
+            .toPandas()
+        )
+        ids = choose_ids(light)
+        # 2. texte des seules offres retenues
+        details = (
+            offers.where(F.col("offre_id").isin(ids))
+            .select("offre_id", "source", "titre_brut", "entreprise", "description")
             .toPandas()
         )
     finally:
         spark.stop()
-    sample = stratified_sample(offers)
+    sample = format_sample(details, ids)
     PATH.parent.mkdir(parents=True, exist_ok=True)
     sample.to_csv(PATH, index=False, encoding="utf-8")
     n_ma = int((sample["source"] == "ats_maroc").sum())

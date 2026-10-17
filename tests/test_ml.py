@@ -151,6 +151,16 @@ def test_echantillon_stratifie_melange_et_sans_prediction():
     assert s["offre_id"].tolist() == clf.stratified_sample(_pool())["offre_id"].tolist()
 
 
+def test_tirage_sur_colonnes_legeres_puis_texte_des_seules_retenues():
+    pool = _pool()
+    light = pool[["offre_id", "source", "famille_poste"]]  # sans texte
+    ids = clf.choose_ids(light)
+    assert ids == clf.stratified_sample(pool)["offre_id"].tolist()
+    details = pool[pool["offre_id"].isin(ids)].sample(frac=1, random_state=1)
+    out = clf.format_sample(details, ids)
+    assert out["offre_id"].tolist() == ids  # ordre du tirage, pas celui de Spark
+
+
 def test_annotations_partielles_et_codes_invalides(tmp_path):
     path = tmp_path / "familles.csv"
     pd.DataFrame(

@@ -618,6 +618,14 @@ offres stratifiées puis mélangées, prédiction des règles masquée), guide
 F1 macro dans MLflow, sentence-transformers si installé). Pas d'étiquette inventée :
 mesurer les règles contre leurs propres sorties n'aurait aucun sens.
 
+Défaut de conception trouvé à la 1re exécution réelle : je rapatriais dans le
+driver Spark les descriptions des 115 000 offres pour n'en garder que 402 ;
+échec pendant `toPandas()` après plus de 20 min. Corrigé : tirage sur les
+colonnes légères (identifiant, source, famille), puis texte des seules offres
+retenues. Fichier produit en 5 min 28 s : 402 offres (37 marocaines, 365 du
+dataset US), identifiants uniques, mélangées, `famille_reelle` vide. Fichier
+non versionné (`data/`).
+
 ### Tests et vérifications
 
 - 10 tests ML sur données synthétiques : exclusions, découpage sans entreprise
