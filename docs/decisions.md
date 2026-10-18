@@ -595,3 +595,70 @@ Rédigé au moment de la décision, pas après.
   redémarré et sain à 20:08:56 : **4 min au lieu de 35**, sans intervention.
 - **Non couvert :** le processeur de DAGs (il se termine de lui-même quand il perd
   sa base, il ne s'est pas figé) ; MLflow (non critique pour les runs planifiés).
+
+## D54 — CI GitHub Actions en deux jobs, sans secret ni service (jour 9)
+
+- **`qualite-tests`** : ruff et black sur `src tests dags scripts docker/airflow`,
+  puis tous les tests avec couverture (Java 17 pour PySpark, comme l'image app).
+  Les tests n'ont besoin d'aucun service : fixtures synthétiques, paramètres
+  factices.
+- **`dags`** : construit l'image Airflow du projet et lance la vérification des
+  DAGs **sans base ni réseau** (`--network none`). Il a fallu lire les DAGs
+  analysés (`bag.dags`) au lieu de `bag.get_dag()`, qui interroge la base de
+  métadonnées en Airflow 3 : la vérification ne dépend plus d'une base.
+- **Couverture :** 63 % ; seuil `--cov-fail-under=60` pour interdire le recul.
+  Non couvert : les `main()`/`run()` d'entrées-sorties (MinIO, PostgreSQL, Spark
+  réel), vérifiés par les vrais runs ; viser 90 % avec des simulacres de MinIO et
+  PostgreSQL testerait surtout les simulacres.
+- Permissions minimales (`contents: read`), un push annule la CI encore en cours.
+
+## D55 — Salaires : la couverture accompagne toujours la médiane (jour 9)
+
+- `gold.salaires_par_famille` : par famille et niveau, offres uniques, nombre
+  avec salaire (hors anomalies), **taux de couverture**, quartiles en USD.
+- 29,5 % des offres du dataset US publient un salaire, 0 % au Maroc : une médiane
+  sans sa couverture laisserait croire qu'elle décrit toute la famille.
+- Une médiane calculée sur moins de 30 salaires est marquée non fiable
+  (`bi.salaires.mediane_fiable`) et masquée par le tableau de bord (exemple
+  réel : « Data engineering, directeur », 7 salaires).
+- Défaut évité : `run()` ne lisait qu'une projection de Silver sans les colonnes
+  de salaire. Trouvé en lançant Gold avant le run planifié de 14:00, qui aurait
+  sinon échoué.
+
+## D56 — Couche `bi` et rôle PostgreSQL en lecture seule pour Power BI (jour 9)
+
+- Vues `bi.*` (offres mensuelles, classement des technologies, salaires,
+  couverture) : recalculées à la lecture, toujours alignées sur Gold.
+- `powerbi_lecteur` (`scripts/creer_lecteur_powerbi.py`) : SELECT sur `gold` et
+  `bi` seulement, 5 connexions au plus ; mot de passe généré dans `.env`, jamais
+  affiché. Prouvé : suppression, création de table et lecture de `ops` refusées
+  (code 42501). Un `.pbix` partagé avec des identifiants mémorisés ne peut donc
+  rien détruire.
+
+## D57 — PostgreSQL et MinIO accessibles depuis ce PC seulement (jour 9)
+
+- **Constat :** ports publiés sur `0.0.0.0` : PostgreSQL et MinIO étaient
+  joignables depuis tout le réseau local (Wi-Fi public compris), protégés par
+  leur seul mot de passe. Airflow et MLflow étaient déjà limités.
+- **Choix :** `127.0.0.1` pour tous les ports. Power BI, sur le même PC, se
+  connecte par `localhost` ; les conteneurs se parlent par le réseau Docker.
+
+## D58 — Figures du README générées par script ; pas de courbe trompeuse (jour 9)
+
+- Power BI Desktop n'est pas installé sur le PC (et consomme 1 à 2 Go de RAM sur
+  une machine qui en manque, D52). Le tableau de bord est **spécifié**
+  (`docs/powerbi.md`) et ses données prêtes ; `scripts/figures_readme.py` produit
+  des aperçus reproductibles des mêmes vues (palette validée pour le
+  daltonisme, typographie française).
+- **Pas d'« évolution mensuelle » dans le README :** le dataset Kaggle est un
+  instantané (98,5 % des offres en avril 2024) et les dates marocaines sont
+  celles d'offres encore ouvertes. Une courbe mensuelle montrerait un artefact
+  de collecte, pas une tendance.
+
+## D59 — Adresse e-mail des commits : à trancher avant publication (jour 9)
+
+- L'historique ne contient aucun secret (valeurs réelles de `.env` recherchées
+  dans tous les commits : 0 occurrence). Mais l'e-mail personnel de l'auteur
+  figure dans les métadonnées des commits et deviendrait public avec le dépôt.
+- Option : adresse « noreply » de GitHub et réécriture de l'historique
+  (force-push). Décision laissée au propriétaire du dépôt.

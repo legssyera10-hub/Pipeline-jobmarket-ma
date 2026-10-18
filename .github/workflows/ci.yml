@@ -1,0 +1,75 @@
+# Intégration continue : à chaque push et pull request.
+#   1. qualite-tests : lint, format, tests unitaires (dont Spark local), couverture
+#   2. dags          : les DAGs se chargent et respectent leurs règles (image Airflow)
+# Aucun secret ni service n'est nécessaire : les tests utilisent des fixtures
+# synthétiques et des paramètres factices (tests/conftest.py).
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read  # la CI lit le code, n'écrit rien
+
+concurrency:  # un nouveau push annule la CI encore en cours sur la même branche
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualite-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      PYSPARK_PYTHON: python
+      GX_ANALYTICS_ENABLED: "false"
+      GIT_PYTHON_REFRESH: quiet
+      TQDM_DISABLE: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - uses: actions/setup-java@v4  # PySpark 3.5 : Java 17, comme l'image app
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Dépendances
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Lint (ruff)
+        run: ruff check src tests dags scripts docker/airflow
+
+      - name: Format (black)
+        run: black --check src tests dags scripts docker/airflow
+
+      # 63 % au jour 9 ; non couvert : les main()/run() d'entrées-sorties (MinIO,
+      # PostgreSQL, Spark réel), vérifiés par les vrais runs. Seuil : pas de recul.
+      - name: Tests et couverture
+        run: pytest -q --cov=src --cov-report=term-missing:skip-covered --cov-fail-under=60
+
+  dags:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Image Airflow du projet
+        run: docker build -f docker/airflow.Dockerfile -t jobmarket-airflow:ci .
+
+      - name: Vérification des DAGs (sans base ni réseau)
+        run: >
+          docker run --rm --network none
+          -e JOBMARKET_HOST_DIR=/tmp -e AIRFLOW__CORE__LOAD_EXAMPLES=false
+          -v "$PWD/dags:/opt/airflow/dags:ro"
+          -v "$PWD/tests/airflow:/opt/airflow/verif:ro"
+          jobmarket-airflow:ci python /opt/airflow/verif/verifier_dags.py

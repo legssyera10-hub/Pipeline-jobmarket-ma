@@ -719,3 +719,44 @@ plus aucun avertissement de signature ni de déduction des dépendances.
   la VM utilise ~2,0 Go au repos (après allègement de MLflow), ~3,3 Go au pic
   d'un job ML ; 4,5 Go laisseraient ~1 Go de plus à Windows avec une marge de
   ~1,2 Go (+ 2 Go de swap dans la VM).
+
+## Jour 9 — 2026-10-18 — CI, restitution, sécurité
+
+### État de départ
+
+PC démarré à 11:25 UTC ; pile saine (6/6), aucun redémarrage de PostgreSQL depuis
+le 17 à 19:01, aucun déclenchement de l'auto-réparation hors du test de la veille.
+
+### Sécurité (fait en premier : elle conditionne la publication)
+
+- Historique Git (6 commits) : valeur réelle de chaque secret de `.env`
+  recherchée dans tous les commits -> **0 occurrence**. `MINIO_ROOT_USER` apparaît
+  (« jobmarket », un identifiant, pas un secret).
+- **E-mail personnel dans les métadonnées des 6 commits** : public si le dépôt
+  l'est. Réécriture de l'historique laissée à la décision du propriétaire (D59).
+- **PostgreSQL et MinIO écoutaient sur 0.0.0.0** (tout le réseau local) :
+  ramenés à `127.0.0.1` (D57). Pile recréée, 6/6 sains.
+
+### CI GitHub Actions (D54)
+
+- Deux jobs : qualité et tests (ruff, black, tests, couverture 63 %, seuil 60) ;
+  vérification des DAGs dans l'image Airflow, sans base ni réseau.
+- Préalable trouvé en simulant la CI en local : la vérification des DAGs
+  échouait sans base (`no such table: dag`) ; `bag.get_dag()` interroge la base
+  en Airflow 3. Remplacé par `bag.dags[...]` : 24/24 hors ligne.
+
+### Restitution
+
+- `gold.salaires_par_famille` (D55) : couverture 29,5 % (US), 0 % (Maroc, aucune
+  médiane inventée) ; médianes sous 30 salaires marquées non fiables.
+  Défaut trouvé avant qu'il ne casse le run de 14:00 : la projection de Silver
+  dans `run()` n'avait pas les colonnes de salaire (erreur Spark immédiate en
+  lançant Gold à la main).
+- Vues `bi.*` et rôle `powerbi_lecteur` (D56) : lecture prouvée, suppression,
+  création de table et lecture de `ops` refusées (42501).
+- Power BI Desktop n'est pas installé : guide complet (`docs/powerbi.md`) et 5
+  figures générées depuis Gold (`docs/img/`, D58). Revue visuelle de chaque
+  figure : mon remplacement des virgules (séparateur de milliers) supprimait
+  aussi les virgules du texte, décimales à l'anglaise, « +0 % » : corrigés.
+- « Évolution mensuelle » volontairement absente : 98,5 % des offres US datent
+  d'avril 2024 (instantané).

@@ -46,13 +46,13 @@ def main() -> int:
         "3 DAGs chargés",
         set(bag.dag_ids) == {"ats_maroc_quotidien", "kaggle_manuel", "ml_manuel"},
     )
-    ml = bag.get_dag("ml_manuel")
+    ml = bag.dags["ml_manuel"]
     check("ml_manuel : non planifié", type(ml.timetable).__name__ == "NullTimetable")
     check("ml_manuel : commande du modèle de salaire",
           [x.pool for x in ml.tasks] == ["spark"]
           and ml.tasks[0].command.startswith("python -m src.ml.salaire"))  # fmt: skip
 
-    dag = bag.get_dag("ats_maroc_quotidien")
+    dag = bag.dags["ats_maroc_quotidien"]
     t = {task.task_id: task for task in dag.tasks}
     check(
         "tâches attendues",
@@ -135,7 +135,7 @@ def main() -> int:
     check("source de démonstration : jamais de collecte",
           branch == "bronze" and len(sent) == 1)  # fmt: skip
 
-    kaggle = bag.get_dag("kaggle_manuel")
+    kaggle = bag.dags["kaggle_manuel"]
     check(
         "kaggle_manuel non planifié", type(kaggle.timetable).__name__ == "NullTimetable"
     )

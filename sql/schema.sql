@@ -83,6 +83,23 @@ ALTER TABLE gold.cooccurrence_tech DROP CONSTRAINT IF EXISTS cooccurrence_tech_o
 ALTER TABLE gold.cooccurrence_tech
     ADD CONSTRAINT cooccurrence_tech_ordre CHECK (tech_a COLLATE "C" < tech_b COLLATE "C");
 
+-- Couverture et distribution des salaires publiés (jour 9). Le taux de couverture
+-- accompagne TOUJOURS les salaires dans le tableau de bord : une médiane calculée
+-- sur 3 % des offres ne décrit pas toute la famille.
+CREATE TABLE IF NOT EXISTS gold.salaires_par_famille (
+    source             TEXT    NOT NULL,
+    famille_poste      TEXT    NOT NULL,
+    niveau_experience  TEXT    NOT NULL,   -- 'Non précisé' si inconnu
+    nb_offres          INTEGER NOT NULL,   -- offres uniques
+    nb_avec_salaire    INTEGER NOT NULL,   -- salaire publié, hors anomalies
+    taux_couverture    DOUBLE PRECISION NOT NULL,
+    nb_salaires_usd    INTEGER NOT NULL,   -- base des quartiles ci-dessous
+    salaire_p25_usd    DOUBLE PRECISION,   -- NULL si aucun salaire en USD
+    salaire_median_usd DOUBLE PRECISION,
+    salaire_p75_usd    DOUBLE PRECISION,
+    PRIMARY KEY (source, famille_poste, niveau_experience)
+);
+
 -- Effet associé de chaque technologie sur le salaire (modèle ML, jour 8).
 -- SHAP moyen sur les offres qui citent la technologie, à profil comparable :
 -- une ASSOCIATION, pas un effet causal. Dataset US : salaires en USD.
@@ -95,3 +112,41 @@ CREATE TABLE IF NOT EXISTS gold.prime_salariale_tech (
     mlflow_run_id  TEXT    NOT NULL,   -- traçabilité : quel modèle a produit ces chiffres
     PRIMARY KEY (source, technologie)
 );
+
+-- Couche de lecture du tableau de bord (jour 9) : vues sur gold.*, recalculées à la
+-- lecture, donc toujours alignées sur la dernière publication Gold. Power BI se
+-- connecte avec le rôle en lecture seule `powerbi_lecteur`
+-- (scripts/creer_lecteur_powerbi.py), jamais avec le compte administrateur.
+CREATE SCHEMA IF NOT EXISTS bi;
+
+-- Page 1 : volume d'offres par mois et famille
+CREATE OR REPLACE VIEW bi.offres_mensuelles AS
+SELECT source, mois, famille_poste,
+       SUM(nb_offres)::INTEGER AS nb_offres, SUM(nb_annonces)::INTEGER AS nb_annonces
+FROM gold.offres_par_ville
+GROUP BY source, mois, famille_poste;
+
+-- Page 2 : classement des technologies sur toute la période (offres tech)
+CREATE OR REPLACE VIEW bi.tech_classement AS
+WITH totaux AS (
+    SELECT source, SUM(nb_offres) AS offres_tech
+    FROM bi.offres_mensuelles WHERE famille_poste <> 'AUTRE' GROUP BY source
+)
+SELECT t.source, t.technologie, SUM(t.nb_offres)::INTEGER AS nb_offres,
+       SUM(t.nb_offres)::DOUBLE PRECISION / NULLIF(MAX(o.offres_tech), 0) AS part_offres_tech
+FROM gold.tech_par_mois t JOIN totaux o USING (source)
+WHERE t.perimetre = 'tech'
+GROUP BY t.source, t.technologie;
+
+-- Page 3 : la couverture accompagne toujours les salaires ; une médiane calculée
+-- sur moins de 30 salaires est marquée non fiable (le visuel la masque)
+CREATE OR REPLACE VIEW bi.salaires AS
+SELECT s.*, s.nb_salaires_usd >= 30 AS mediane_fiable
+FROM gold.salaires_par_famille s;
+
+CREATE OR REPLACE VIEW bi.couverture_salaires AS
+SELECT source, SUM(nb_offres)::INTEGER AS nb_offres,
+       SUM(nb_avec_salaire)::INTEGER AS nb_avec_salaire,
+       SUM(nb_avec_salaire)::DOUBLE PRECISION / NULLIF(SUM(nb_offres), 0) AS taux_couverture
+FROM gold.salaires_par_famille
+GROUP BY source;

@@ -31,6 +31,7 @@ TABLES = [
     "offres_par_ville",
     "experience_demandee",
     "cooccurrence_tech",
+    "salaires_par_famille",
 ]
 
 # (borne basse incluse, libellé, ordre) ; NULL -> "Non précisé"
@@ -179,12 +180,53 @@ def cooccurrence_tech(silver: DataFrame) -> DataFrame:
     )
 
 
+def salaires_par_famille(silver: DataFrame) -> DataFrame:
+    """Couverture et distribution des salaires publiés, par famille et niveau.
+
+    Offres uniques seulement. `nb_avec_salaire` : salaire publié et non signalé en
+    anomalie (jour 5), toutes devises ; quartiles calculés sur les seuls salaires
+    en USD (milieu de fourchette annualisé) : NULL s'il n'y en a pas (cas du Maroc).
+    """
+    anomaly = F.exists("_anomalies", lambda a: a.startswith("salaire"))
+    has_salary = F.col("salaire_min_annuel").isNotNull() & ~F.coalesce(
+        anomaly, F.lit(False)  # _anomalies NULL : pas d'anomalie
+    )
+    milieu = (F.col("salaire_min_annuel") + F.col("salaire_max_annuel")) / 2
+    usd = F.when(has_salary & (F.col("devise") == "USD"), milieu)
+    quartiles = F.percentile_approx(usd, [0.25, 0.5, 0.75], 10000)
+    return (
+        silver.where(~F.col("est_republication"))
+        .groupBy(
+            "source",
+            "famille_poste",
+            F.coalesce("niveau_experience", F.lit("Non précisé")).alias(
+                "niveau_experience"
+            ),
+        )
+        .agg(
+            F.count("*").alias("nb_offres"),
+            F.sum(has_salary.cast("int")).alias("nb_avec_salaire"),
+            F.count(usd).alias("nb_salaires_usd"),
+            quartiles.alias("_q"),
+        )
+        .withColumn("taux_couverture", F.col("nb_avec_salaire") / F.col("nb_offres"))
+        .select(
+            "source", "famille_poste", "niveau_experience", "nb_offres",
+            "nb_avec_salaire", "taux_couverture", "nb_salaires_usd",
+            F.col("_q")[0].alias("salaire_p25_usd"),
+            F.col("_q")[1].alias("salaire_median_usd"),
+            F.col("_q")[2].alias("salaire_p75_usd"),
+        )  # fmt: skip
+    )
+
+
 def build_gold(silver: DataFrame) -> dict[str, DataFrame]:
     return {
         "tech_par_mois": tech_par_mois(silver),
         "offres_par_ville": offres_par_ville(silver),
         "experience_demandee": experience_demandee(silver),
         "cooccurrence_tech": cooccurrence_tech(silver),
+        "salaires_par_famille": salaires_par_famille(silver),
     }
 
 
@@ -225,8 +267,13 @@ def run(spark: SparkSession, settings: Settings, source: str) -> dict:
             "experience_min_annees",
             "technologies",
             "est_republication",
+            "niveau_experience",
+            "salaire_min_annuel",
+            "salaire_max_annuel",
+            "devise",
+            "_anomalies",
         )  # fmt: skip
-        .cache()  # petite projection (sans description) relue par les 4 tables
+        .cache()  # petite projection (sans description) relue par les 5 tables
     )
     try:
         if silver.limit(1).count() == 0:

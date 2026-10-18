@@ -4,17 +4,17 @@ Pipeline en architecture médaillon (Bronze → Silver → Gold) qui collecte de
 d'emploi tech, les nettoie avec PySpark, contrôle leur qualité et publie des agrégats
 analytiques dans PostgreSQL.
 
-> 🚧 En construction — jour 8/10 : le pipeline tourne **tous les jours à 14:00 et
+> 🚧 En construction — jour 9/10 : le pipeline tourne **tous les jours à 14:00 et
 > 18:00** (Airflow), relançable sans doublon, avec alertes Telegram. Deux sources :
 > offres réelles au Maroc (API publiques de recrutement) et dataset Kaggle de
 > développement. Couche ML suivie dans MLflow (salaire, technologies, familles de
-> poste). À venir : CI, tableau de bord.
+> poste). CI GitHub Actions ; restitution Power BI préparée. À venir : publication.
 
 ## Stack
 
 Python 3.11 · PySpark 3.5 · Airflow 3.3 · Great Expectations 1.24 · MinIO (stockage
 objet S3) · PostgreSQL 16 · MLflow 3.17 · LightGBM · SHAP · scikit-learn · Docker
-Compose · Telegram (alertes) · pytest · ruff · black
+Compose · Telegram (alertes) · pytest · ruff · black · GitHub Actions · Power BI
 
 ## Architecture
 
@@ -185,6 +185,7 @@ docker compose run --rm --no-deps app python -m scripts.check_gold
 | `gold.experience_demandee` | famille de poste x tranche d'expérience, part dans la famille |
 | `gold.cooccurrence_tech` | paires de technologies : offres communes, Jaccard, lift |
 | `gold.prime_salariale_tech` | effet associé de chaque technologie sur le salaire (modèle ML, dataset US) |
+| `gold.salaires_par_famille` | famille x niveau : taux de couverture des salaires, quartiles en USD |
 
 `nb_offres` compte les offres uniques (hors republications), `nb_annonces` toutes les
 annonces. Le recalcul est complet, écrit dans `gold_staging` puis basculé en une seule
@@ -287,6 +288,49 @@ docker compose run --rm --no-deps app python -m src.ml.classification evaluer
 
 *Résultats : en attente de l'annotation (au moins 150 offres).*
 
+## Restitution
+
+Le tableau de bord Power BI lit les tables Gold et les vues `bi.*` avec un compte
+PostgreSQL **en lecture seule** : connexion, mesures et contenu des 3 pages dans
+[docs/powerbi.md](docs/powerbi.md). Les figures ci-dessous en sont l'aperçu,
+générées depuis les mêmes agrégats par `python -m scripts.figures_readme`
+(dataset LinkedIn US ; la source marocaine, 37 offres, est trop petite pour ces
+graphiques).
+
+![Offres tech par famille de poste](docs/img/offres_par_famille.png)
+![Technologies les plus demandées](docs/img/technologies.png)
+![Villes qui publient le plus d'offres tech](docs/img/top_villes.png)
+![Salaire annuel par famille, niveau confirmé](docs/img/salaires.png)
+![Technologies et salaire estimé](docs/img/prime_technologies.png)
+
+Règles de lecture appliquées partout :
+
+- **une source à la fois**, jamais le dataset US additionné aux offres marocaines ;
+- **la couverture accompagne toujours un salaire** : 29,5 % des offres US publient
+  un salaire, 0 % des offres marocaines ; une médiane sur moins de 30 salaires
+  est masquée ;
+- **pas de courbe mensuelle** tant que les données ne la justifient pas : le
+  dataset US est un instantané (98,5 % des offres en avril 2024).
+
+## Intégration continue
+
+[.github/workflows/ci.yml](.github/workflows/ci.yml), à chaque push et pull
+request, sans secret ni service :
+
+- **qualité et tests** : ruff, black, tous les tests (dont Spark local, Java 17),
+  couverture 63 % avec un seuil à 60 % ;
+- **DAGs** : image Airflow du projet construite, puis vérification des DAGs sans
+  base de données ni réseau (24 contrôles).
+
+## Sécurité
+
+- Aucun secret dans le dépôt ni dans son historique : les valeurs réelles de
+  `.env` ont été recherchées dans tous les commits (0 occurrence).
+- Tous les services n'écoutent que sur `127.0.0.1` (ce PC).
+- Power BI se connecte avec `powerbi_lecteur`, qui ne peut que lire `gold` et `bi`.
+- Le dépôt ne contient que du code et des agrégats : ni annonce, ni fichier
+  d'annotation (`data/` est exclu).
+
 ## Incidents et résilience
 
 Pannes **provoquées volontairement** le 2026-10-16, sur une source isolée
@@ -322,13 +366,14 @@ src/transform/    jobs PySpark Silver / Gold
 src/quality/      règles de quarantaine, suites Great Expectations
 src/ml/           modèle de salaire (LightGBM, SHAP), classification des familles
 src/utils/        config (.env), SparkSession (s3a + JDBC), client S3, PostgreSQL
-sql/              schéma PostgreSQL (gold, gold_staging, ops), idempotent
-scripts/          scripts opérationnels (check_*, explore, purge, annotation)
+sql/              schéma PostgreSQL (gold, gold_staging, ops, vues bi), idempotent
+scripts/          scripts opérationnels (check_*, figures, rôle Power BI, annotation)
 dags/             DAGs Airflow (+ commun.py : tâche = conteneur, alertes)
 reference/        référentiels (technologies, états US, villes marocaines, employeurs)
-tests/            tests unitaires (+ fixtures)
-docker/           Dockerfiles (app, Airflow, MLflow), init SQL PostgreSQL
-docs/             décisions d'architecture, journal, guide d'annotation
+tests/            tests unitaires (+ fixtures), vérification des DAGs (airflow/)
+.github/          CI GitHub Actions
+docker/           Dockerfiles (app, Airflow, MLflow), auto-réparation, init SQL
+docs/             décisions, journal, guides (annotation, Power BI), figures (img/)
 ```
 
 ## Décisions et compromis
