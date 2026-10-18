@@ -760,3 +760,31 @@ le 17 à 19:01, aucun déclenchement de l'auto-réparation hors du test de la ve
   aussi les virgules du texte, décimales à l'anglaise, « +0 % » : corrigés.
 - « Évolution mensuelle » volontairement absente : 98,5 % des offres US datent
   d'avril 2024 (instantané).
+
+### CI : verte du premier coup
+
+Run GitHub Actions sur `4f6cd14` : job `dags` 60 s, job `qualite-tests` 227 s ;
+277 tests réussis, couverture 63,26 % (identique au local). Les tests prennent
+2 min 20 s sur GitHub contre 9 min 47 s sur ce PC : nouvelle mesure de la
+pénalité due au manque de RAM (D52).
+
+### Découverte : l'horloge du PC retarde d'une heure
+
+En comparant l'horodatage de la CI (GitHub) à l'heure du PC : écart de
+**−3 615 s**, confirmé par trois serveurs (Google, GitHub, Cloudflare). Le fuseau
+Windows est correct (Casablanca, UTC+1), mais la synchronisation automatique est
+désactivée (`W32Time` : `NoSync`, service arrêté) : l'horloge est réglée une heure
+trop tôt. La VM Docker hérite de cette heure.
+
+Conséquences : les runs « 14:00 » et « 18:00 » partent en réalité à 15:00 et
+19:00 (heure du Maroc), les journaux sont décalés d'une heure, et une date limite
+mal placée ferait sauter une collecte vers minuit. Correction : réactiver la
+synchronisation de l'heure de Windows (droits administrateur, choix du
+propriétaire du PC).
+
+### Run planifié de 14:00 (heure du PC) avec le nouveau Gold
+
+Succès, toutes les tâches à la 1re tentative : collecte 37 s, Silver 127 s
+(Bronze 37 = 0 nouvelle + 37 déjà publiées, 4e jour sans nouvelle offre chez ces
+employeurs), Gold 39 s, dont `gold.salaires_par_famille` (37 offres, couverture
+0 %).
