@@ -201,6 +201,21 @@ def test_evaluation_regles_et_tfidf():
     df = pd.DataFrame(rows, columns=["famille_reelle", "titre_brut", "description"])
     df["texte"] = df["titre_brut"] + " \n " + df["description"]
     rules = clf.evaluate_rules(df)
-    assert set(rules) == {"f1_macro", "exactitude", "rapport"}
+    assert set(rules) == {"f1_macro", "exactitude", "rapport", "pred"}
+    assert len(rules["pred"]) == len(df)
     assert 0 <= rules["f1_macro"] <= 1
     assert clf.evaluate_tfidf(df)["f1_macro"] > 0.95
+
+
+def test_sous_ensembles_ambigus_et_maroc():
+    df = pd.DataFrame(
+        {
+            "source": ["ats_maroc"] * 12 + ["kaggle_linkedin"] * 20,
+            "incertain": ["oui"] * 3 + [""] * 29,
+        }
+    )
+    masks = clf.subsets(df)
+    assert int(masks["hors_ambigus"].sum()) == 29
+    assert int(masks["maroc"].sum()) == 12
+    # moins de 10 offres : sous-ensemble ignoré (score sans signification)
+    assert "maroc" not in clf.subsets(df.iloc[3:12].reset_index(drop=True))

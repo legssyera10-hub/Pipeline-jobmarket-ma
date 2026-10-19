@@ -662,3 +662,50 @@ Rédigé au moment de la décision, pas après.
   figure dans les métadonnées des commits et deviendrait public avec le dépôt.
 - Option : adresse « noreply » de GitHub et réécriture de l'historique
   (force-push). Décision laissée au propriétaire du dépôt.
+
+## D60 — Docker limité à 4,5 Go ; effet mesuré : aucun gain côté Windows (avant jour 10)
+
+- **Fait :** `memory=4608MB` (au lieu de 5,5 Go) dans `.wslconfig`, à la demande
+  du propriétaire du PC. VM : 4 418 Mo ; pile saine ; suite de tests passée (pic
+  3,93 Go + 346 Mo de swap dans la VM).
+- **Mesuré :** côté Windows, toujours 0,4 Go libres et 1 400 à 2 000 pages lues
+  par seconde ; la VM remplit sa nouvelle limite (4,1 Go réservés) et swappe en
+  interne ; suite de tests 14 min 51 s (contre 9 min 47 s à 5,5 Go, une seule
+  mesure dans chaque cas, charges différentes). La demande mémoire totale de
+  Windows (14,4 Go engagés pour 7,8 Go de RAM) dépasse Docker.
+- **Conclusion :** réglage conservé, sans gain démontré. Le levier décisif est la
+  mémoire des autres applications (ou du matériel) ; l'auto-réparation (D53)
+  protège les runs planifiés en attendant.
+
+## D61 — Annotations posées par un modèle de langage, dit tel quel (avant jour 10)
+
+- **Raison :** les deux mesures annoncées (précision de l'extraction des
+  technologies, F1 des familles de poste) attendaient des annotations depuis les
+  jours 3 et 8 ; le propriétaire du projet a confié l'annotation à Claude.
+- **Protocole :** familles : 402 offres, titre et début de description lus, sans
+  la prédiction des règles, guide `docs/guide_annotation.md`, 58 cas ambigus
+  marqués (`incertain`). Technologies : 100 descriptions complètes lues **sans**
+  la colonne extraite, identifiants du référentiel, règle stricte (seules les
+  technologies nommées comptent : « shell » n'est pas `bash`, « Azure OpenAI »
+  n'est pas `openai_api`).
+- **Résultats :** technologies : précision 97,1 %, rappel 92,9 %, F1 95,0 %.
+  Familles : règles F1 macro 0,843 (0,904 hors ambigus, 0,891 au Maroc) contre
+  0,770 pour TF-IDF + régression logistique ; l'annotateur est tracé dans MLflow.
+- **Limites :** pas d'annotateur humain ; un modèle qui lit d'abord le titre,
+  comme les règles, peut surestimer l'accord. Les erreurs révélées (classe non
+  tech, `HTML5`, `Springboot`, `Lambda`) ne sont pas corrigées sur ce même jeu :
+  ce serait régler l'outil sur sa propre épreuve.
+
+## D62 — Tableau de bord web autonome, généré depuis Gold (avant jour 10)
+
+- **Raison :** Power BI n'est pas installé et coûte 1 à 2 Go de RAM ; un fichier
+  HTML unique se consulte sans serveur et se publiera avec le dépôt (GitHub
+  Pages).
+- **Construction :** `scripts/tableau_de_bord.py` lit les vues `bi.*` et les
+  tables `gold.*` (environ 20 Ko d'agrégats, jamais d'annonce) et les injecte
+  dans `scripts/tableau_de_bord.html` (JSON neutralisé : aucune donnée ne peut
+  fermer la balise `<script>`, testé). SVG sans bibliothèque, à l'échelle réelle
+  du conteneur ; palette validée daltonisme dans les deux thèmes ; info-bulles
+  au survol et au clavier ; données de chaque graphique en tableau.
+- **Règles :** une source à la fois ; couverture des salaires affichée en tête ;
+  médiane masquée sous 30 salaires ; pas de courbe mensuelle (D58).

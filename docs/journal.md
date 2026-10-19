@@ -788,3 +788,40 @@ Succès, toutes les tâches à la 1re tentative : collecte 37 s, Silver 127 s
 (Bronze 37 = 0 nouvelle + 37 déjà publiées, 4e jour sans nouvelle offre chez ces
 employeurs), Gold 39 s, dont `gold.salaires_par_famille` (37 offres, couverture
 0 %).
+
+## Avant le jour 10 — 2026-10-19
+
+### État de départ
+Pile saine ; aucun arrêt de PostgreSQL ni déclenchement de l'auto-réparation en
+30 h. Le run de 18:00 du 18 (PC éteint) a été rattrapé ce matin : première
+tentative de `choisir` interrompue par un redémarrage de Docker, deuxième
+réussie, logique de retard appliquée. L'horloge du PC retarde toujours d'une
+heure (−3 606 s). La source marocaine compte désormais 38 offres.
+
+### Mémoire (D60)
+Limite Docker à 4,5 Go appliquée (après un redémarrage de Docker Desktop qui a
+dû être complet : la première tentative a laissé la VM arrêtée). Aucun gain
+mesurable côté Windows ; détail dans D60.
+
+### Annotations et mesures (D61)
+- Familles de poste : 402 offres annotées ; règles F1 macro 0,843 (0,904 hors
+  ambigus, 0,891 Maroc) ; TF-IDF + régression logistique 0,770 (0,370 Maroc).
+  Évaluation enrichie : sous-ensembles « hors ambigus » et « Maroc »,
+  annotateur tracé dans MLflow (test ajouté). 38 s d'exécution.
+- Technologies : 100 offres ; précision 97,1 %, rappel 92,9 %, F1 95,0 %.
+
+### Tableau de bord web (D62)
+Page générée depuis Gold. Une capture (Edge sans interface) a révélé trois
+défauts, corrigés en une passe : onglets tous visibles (`display: grid` plus fort
+que `hidden`), graphiques étirés au double (texte énorme), texte illisible sur
+certaines cases en thème sombre. Aperçu privé publié.
+
+### Vérifications
+280 tests réussis, couverture 62,95 % ; lint propre.
+
+### Ce qui reste pour le jour 10
+1. Schéma d'architecture en image (`docs/architecture.png`).
+2. README restructuré selon le plan (chiffres, décisions, incidents, limites).
+3. Décision sur l'e-mail des commits (D59) avant de rendre le dépôt public.
+4. Dépôt public, GitHub Pages pour `docs/dashboard/`, captures.
+5. Côté PC : resynchroniser l'heure de Windows.

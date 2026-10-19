@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JobMarket MA</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Tableau de bord du marché de l'emploi tech : offres, technologies, salaires. Agrégats Gold du pipeline JobMarket MA.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Mise en page : barre de tête (nom + choix de la source), bandeau de 4 chiffres,
+   onglets des 3 pages, cartes en grille 2 colonnes (1 sur téléphone). */
+:root {
+  --bg: #f4f6f9; --surface: #ffffff; --ink: #141820; --ink-2: #4a5263; --ink-3: #6f7686;
+  --line: #e1e5eb; --chip: #eaf0f8; --accent: #2a78d6; --neg: #e34948; --na: #c6ccd5;
+  --s1: #cde2fb; --s2: #9ec5f4; --s3: #6da7ec; --s4: #3987e5; --s5: #256abf; --s6: #184f95; --s7: #0d366b;
+  --o1: #86b6ef; --o2: #5598e7; --o3: #2a78d6; --o4: #1c5cab; --o5: #104281;
+  --on-dark: #ffffff; --on-light: #141820;
+  --t1: #141820; --t2: #141820; --t3: #141820; --t4: #ffffff; --t5: #ffffff; --t6: #ffffff; --t7: #ffffff;
+  --ot0: #141820; --ot1: #141820; --ot2: #141820; --ot3: #ffffff; --ot4: #ffffff; --ot5: #ffffff;
+  --f-display: "IBM Plex Sans Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --f-data: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111317; --surface: #191c21; --ink: #eceef2; --ink-2: #b4bac5; --ink-3: #8b929e;
+  --line: #2b3038; --chip: #222a36; --accent: #3987e5; --neg: #e66767; --na: #3b414b;
+  --s1: #1b2636; --s2: #184f95; --s3: #1c5cab; --s4: #2a78d6; --s5: #5598e7; --s6: #86b6ef; --s7: #b7d3f6;
+  --o1: #184f95; --o2: #1c5cab; --o3: #2a78d6; --o4: #5598e7; --o5: #86b6ef;
+  --t1: #eceef2; --t2: #ffffff; --t3: #ffffff; --t4: #ffffff; --t5: #0f1216; --t6: #0f1216; --t7: #0f1216;
+  --ot0: #eceef2; --ot1: #ffffff; --ot2: #ffffff; --ot3: #ffffff; --ot4: #0f1216; --ot5: #0f1216;
+  --on-dark: #ffffff; --on-light: #0f1216; color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bg: #111317; --surface: #191c21; --ink: #eceef2; --ink-2: #b4bac5; --ink-3: #8b929e;
+  --line: #2b3038; --chip: #222a36; --accent: #3987e5; --neg: #e66767; --na: #3b414b;
+  --s1: #1b2636; --s2: #184f95; --s3: #1c5cab; --s4: #2a78d6; --s5: #5598e7; --s6: #86b6ef; --s7: #b7d3f6;
+  --o1: #184f95; --o2: #1c5cab; --o3: #2a78d6; --o4: #5598e7; --o5: #86b6ef;
+  --t1: #eceef2; --t2: #ffffff; --t3: #ffffff; --t4: #ffffff; --t5: #0f1216; --t6: #0f1216; --t7: #0f1216;
+  --ot0: #eceef2; --ot1: #ffffff; --ot2: #ffffff; --ot3: #ffffff; --ot4: #0f1216; --ot5: #0f1216;
+  --on-dark: #ffffff; --on-light: #0f1216; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink); font: 400 15px/1.5 var(--f-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 48px;
+}
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 20px; }
+header.top {
+  display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 16px;
+  padding-block: 28px 4px; border-bottom: 1px solid var(--line); padding-bottom: 18px;
+}
+.brand h1 { font: 600 30px/1.1 var(--f-display); margin: 0; letter-spacing: .01em; text-wrap: balance; }
+.brand p { margin: 6px 0 0; color: var(--ink-2); max-width: 62ch; }
+.eyebrow { font: 500 12px/1 var(--f-data); color: var(--ink-3); letter-spacing: .08em; text-transform: uppercase; margin: 0 0 8px; }
+.switch { display: grid; gap: 6px; }
+.switch span { font-size: 12px; color: var(--ink-3); letter-spacing: .04em; text-transform: uppercase; }
+.seg { display: inline-flex; background: var(--chip); border-radius: 999px; padding: 3px; gap: 2px; flex-wrap: wrap; }
+.seg button {
+  font: 500 14px/1 var(--f-body); color: var(--ink-2); background: transparent; border: 0;
+  border-radius: 999px; padding: 9px 14px; cursor: pointer;
+}
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; min-width: 0; }
+.kpi .k { font-size: 13px; color: var(--ink-2); }
+.kpi .v { font: 500 26px/1.2 var(--f-data); font-variant-numeric: tabular-nums; margin-top: 4px; }
+.kpi .d { font-size: 12.5px; color: var(--ink-3); margin-top: 2px; }
+.pill { display: inline-block; font: 500 11.5px/1 var(--f-body); padding: 4px 8px; border-radius: 999px; background: var(--chip); color: var(--ink-2); }
+nav.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+nav.tabs button {
+  font: 500 15px/1 var(--f-body); background: none; border: 0; color: var(--ink-2); cursor: pointer;
+  padding: 12px 14px; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap;
+}
+nav.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 18px 14px; min-width: 0; display: grid; gap: 10px; align-content: start; }
+.card.wide { grid-column: 1 / -1; }
+.card h2 { font: 600 17px/1.3 var(--f-body); margin: 0; text-wrap: balance; }
+.card .sub { color: var(--ink-2); font-size: 13.5px; margin: -4px 0 0; }
+.note { color: var(--ink-3); font-size: 12.5px; margin: 0; }
+.banner { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; background: var(--chip); border-radius: var(--radius); padding: 14px 16px; }
+.banner .big { font: 500 28px/1 var(--f-data); font-variant-numeric: tabular-nums; }
+.banner p { margin: 0; color: var(--ink-2); max-width: 70ch; min-width: 0; }
+.empty { border: 1px dashed var(--line); border-radius: var(--radius); padding: 22px; color: var(--ink-2); text-align: center; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button { font: 500 13px/1 var(--f-body); border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); border-radius: 999px; padding: 7px 11px; cursor: pointer; }
+.chips button[aria-pressed="true"] { border-color: var(--accent); color: var(--ink); background: var(--chip); }
+svg { display: block; max-width: 100%; height: auto; overflow: visible; }
+svg text { fill: var(--ink-2); font: 400 12px var(--f-body); }
+svg .val { fill: var(--ink); font: 500 11.5px var(--f-data); }
+svg .grid-line { stroke: var(--line); stroke-width: 1; }
+svg .axis { fill: var(--ink-3); font: 400 11px var(--f-data); }
+svg .hit { fill: transparent; cursor: default; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--ink-2); }
+.legend i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+details { font-size: 13px; }
+details summary { cursor: pointer; color: var(--ink-2); }
+.table-wrap { overflow-x: auto; margin-top: 8px; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 5px 10px 5px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td.n, th.n { text-align: right; font-family: var(--f-data); font-size: 12.5px; }
+.tip {
+  position: fixed; pointer-events: none; z-index: 20; background: var(--ink); color: var(--surface);
+  font: 400 12.5px/1.4 var(--f-body); padding: 7px 9px; border-radius: 6px; max-width: 260px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.18);
+}
+.tip b { font-weight: 600; }
+footer { border-top: 1px solid var(--line); padding-top: 16px; color: var(--ink-3); font-size: 13px; display: grid; gap: 6px; }
+footer p { margin: 0; max-width: 90ch; }
+@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 420px) { .brand h1 { font-size: 25px; } .kpi .v { font-size: 22px; } }
+@media (prefers-reduced-motion: no-preference) { .seg button, nav.tabs button, .chips button { transition: background .15s, color .15s, border-color .15s; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <p class="eyebrow">Pipeline data &amp; ML · couche Gold</p>
+      <h1>JobMarket MA</h1>
+      <p>Offres d'emploi tech : volumes, technologies demandées, salaires publiés. Une source à la fois : les deux ne sont jamais additionnées.</p>
+    </div>
+    <div class="switch">
+      <span id="lbl-source">Source</span>
+      <div class="seg" role="group" aria-labelledby="lbl-source" id="seg-source"></div>
+    </div>
+  </header>
+
+  <section class="kpis" id="kpis" aria-label="Chiffres clés"></section>
+
+  <nav class="tabs" role="tablist" aria-label="Pages du tableau de bord">
+    <button role="tab" id="tab-apercu" aria-controls="apercu" aria-selected="true">Vue d'ensemble</button>
+    <button role="tab" id="tab-technologies" aria-controls="technologies" aria-selected="false">Technologies</button>
+    <button role="tab" id="tab-salaires" aria-controls="salaires" aria-selected="false">Salaires et expérience</button>
+  </nav>
+
+  <section role="tabpanel" id="apercu" aria-labelledby="tab-apercu" class="grid">
+    <article class="card"><h2>Offres tech par famille de poste</h2><p class="sub" id="fam-sub"></p><div id="ch-familles"></div><div id="tb-familles"></div></article>
+    <article class="card"><h2>Villes qui publient le plus d'offres tech</h2><p class="sub">Offres tech uniques, 10 premières villes</p><div id="ch-villes"></div><p class="note" id="villes-note"></p><div id="tb-villes"></div></article>
+    <article class="card wide"><h2>Pourquoi pas de courbe mensuelle</h2><p class="note" id="mois-note"></p></article>
+  </section>
+
+  <section role="tabpanel" id="technologies" aria-labelledby="tab-technologies" class="grid" hidden>
+    <article class="card"><h2>Technologies les plus demandées</h2><p class="sub">Part des offres tech qui citent la technologie</p><div id="ch-techs"></div><div id="tb-techs"></div></article>
+    <article class="card"><h2>Technologies citées ensemble</h2><p class="sub">Parmi les offres qui citent la technologie en ligne, part qui cite aussi celle en colonne</p><div id="ch-cooc"></div><p class="note" id="cooc-note"></p></article>
+  </section>
+
+  <section role="tabpanel" id="salaires" aria-labelledby="tab-salaires" class="grid" hidden>
+    <div class="banner card wide" id="couverture"></div>
+    <article class="card wide"><h2>Salaire annuel par famille de poste</h2><p class="sub">Médiane (point) et moitié centrale des salaires, du 25<sup>e</sup> au 75<sup>e</sup> centile (trait). Dollars US.</p><div class="chips" role="group" aria-label="Niveau d'expérience" id="chips-niveau"></div><div id="ch-salaires"></div><p class="note" id="sal-note"></p><div id="tb-salaires"></div></article>
+    <article class="card"><h2>Expérience demandée</h2><p class="sub">Répartition des offres de chaque famille par années d'expérience minimum</p><div id="ch-exp"></div><div class="legend" id="lg-exp"></div><div id="tb-exp"></div></article>
+    <article class="card"><h2>Technologies et salaire estimé</h2><p class="sub">Écart moyen du salaire estimé (modèle LightGBM, SHAP) des offres qui citent la technologie</p><div id="ch-prime"></div><p class="note">Association à profil comparable (famille, niveau, lieu, titre), pas un effet causal. Au moins 50 offres par technologie.</p><div id="tb-prime"></div></article>
+  </section>
+
+  <footer>
+    <p id="pied"></p>
+    <p>Règles de lecture : une source à la fois ; le taux de couverture accompagne tout salaire ; médiane masquée sous <span id="min-sal"></span> salaires. Familles de poste attribuées par règles sur le titre (F1 macro 0,84 sur 402 offres annotées par un modèle de langage, non relues par un humain).</p>
+  </footer>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+const DONNEES = /*__DONNEES__*/null;
+(function () {
+  "use strict";
+  const NS = "http://www.w3.org/2000/svg";
+  const FAM = { DATA_ENG: "Data engineering", DATA_SCI: "Data science", AI_ML: "IA / ML", BI: "BI / analyse", DEV: "Développement", AUTRE: "Non tech" };
+  const NIV = { STAGE: "Stage", DEBUTANT: "Débutant", ASSOCIE: "Associé", CONFIRME: "Confirmé", DIRECTEUR: "Directeur", DIRIGEANT: "Dirigeant", "Non précisé": "Non précisé" };
+  const ORDRE_NIV = ["STAGE", "DEBUTANT", "ASSOCIE", "CONFIRME", "DIRECTEUR", "DIRIGEANT", "Non précisé"];
+  const nf = new Intl.NumberFormat("fr-FR");
+  const nf1 = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+  const pct = (p, d = 0) => new Intl.NumberFormat("fr-FR", { maximumFractionDigits: d, minimumFractionDigits: d }).format(p * 100) + " %";
+  const kusd = (v) => nf.format(Math.round(v / 1000)) + " k$";
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  function el(name, attrs, parent, text) {
+    const n = document.createElementNS(NS, name);
+    for (const k in attrs) n.setAttribute(k, attrs[k]);
+    if (text != null) n.textContent = text;
+    if (parent) parent.appendChild(n);
+    return n;
+  }
+  const widthOf = (box) => Math.max(300, Math.round(box.clientWidth || 600));
+  function svg(w, h, label) { return el("svg", { viewBox: `0 0 ${w} ${h}`, role: "img", "aria-label": label }); }
+
+  // Info-bulle partagée : survol et focus clavier
+  const tip = $("tip");
+  function bindTip(node, html) {
+    node.setAttribute("tabindex", "0");
+    const show = (x, y) => { tip.innerHTML = html; tip.hidden = false; place(x, y); };
+    const place = (x, y) => {
+      const r = tip.getBoundingClientRect();
+      tip.style.left = Math.min(x + 14, window.innerWidth - r.width - 8) + "px";
+      tip.style.top = Math.max(8, y - r.height - 12) + "px";
+    };
+    node.addEventListener("pointerenter", (e) => show(e.clientX, e.clientY));
+    node.addEventListener("pointermove", (e) => place(e.clientX, e.clientY));
+    node.addEventListener("pointerleave", () => { tip.hidden = true; });
+    node.addEventListener("focus", () => { const b = node.getBoundingClientRect(); show(b.left + b.width / 2, b.top); });
+    node.addEventListener("blur", () => { tip.hidden = true; });
+  }
+
+  function table(target, head, rows, numeric) {
+    const t = `<details><summary>Voir les données</summary><div class="table-wrap"><table><thead><tr>${head.map((h, i) => `<th class="${numeric[i] ? "n" : ""}">${esc(h)}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c, i) => `<td class="${numeric[i] ? "n" : ""}">${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div></details>`;
+    $(target).innerHTML = t;
+  }
+
+  // Barres horizontales fines, valeur en bout de barre, grille discrète
+  function hbars(target, items, opts) {
+    const box = $(target); box.innerHTML = "";
+    if (!items.length) { box.innerHTML = `<div class="empty">${opts.empty || "Aucune donnée pour cette source."}</div>`; return; }
+    const W = widthOf(box), L = opts.labelW || 150, R = 64, row = 26, top = 6, bottom = 24;
+    const H = top + items.length * row + bottom;
+    const max = opts.max || Math.max(...items.map((d) => d.v)) || 1;
+    const x = (v) => L + (v / max) * (W - L - R);
+    const s = svg(W, H, opts.label);
+    const ticks = niceTicks(max, 4);
+    ticks.forEach((t) => {
+      el("line", { x1: x(t), x2: x(t), y1: top, y2: H - bottom + 4, class: "grid-line" }, s);
+      el("text", { x: x(t), y: H - 6, "text-anchor": "middle", class: "axis" }, s, opts.tick(t));
+    });
+    items.forEach((d, i) => {
+      const y = top + i * row;
+      el("text", { x: L - 8, y: y + row / 2 + 4, "text-anchor": "end" }, s, d.label);
+      const w = Math.max(1, x(d.v) - L);
+      el("path", { d: barPath(L, y + 6, w, row - 12, 4), fill: opts.color || "var(--accent)" }, s);
+      el("text", { x: L + w + 6, y: y + row / 2 + 4, class: "val" }, s, d.text);
+      const hit = el("rect", { x: 0, y, width: W, height: row, class: "hit" }, s);
+      bindTip(hit, d.tip);
+    });
+    box.appendChild(s);
+  }
+  // Barre à bout arrondi côté valeur, ancrée carrée sur la ligne de base
+  function barPath(x, y, w, h, r) {
+    r = Math.min(r, w, h / 2);
+    return `M${x},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h - r}Q${x + w},${y + h} ${x + w - r},${y + h}H${x}Z`;
+  }
+  function niceTicks(max, n) {
+    const raw = max / n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw) || mag * 10;
+    const out = []; for (let t = 0; t <= max + 1e-9; t += step) out.push(+t.toFixed(6));
+    return out;
+  }
+
+  let source = "kaggle_linkedin", niveau = "CONFIRME";
+  try { const s = localStorage.getItem("jm-source"); if (s && DONNEES.sources[s]) source = s; } catch (e) { /* stockage indisponible */ }
+
+  function renderSourceSwitch() {
+    const seg = $("seg-source"); seg.innerHTML = "";
+    Object.entries(DONNEES.sources).forEach(([k, v]) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.id = "src-" + k; b.textContent = k === "ats_maroc" ? "Maroc" : "Dataset US";
+      b.title = v.libelle; b.setAttribute("aria-pressed", String(k === source));
+      b.addEventListener("click", () => { source = k; try { localStorage.setItem("jm-source", k); } catch (e) { /* ignoré */ } render(); });
+      seg.appendChild(b);
+    });
+  }
+
+  function renderKpis(d) {
+    const top = d.techs[0];
+    const cov = d.couverture;
+    const k = [
+      ["Offres uniques", nf.format(d.total), d.libelle],
+      ["Offres tech", nf.format(d.tech), pct(d.tech / d.total, 1) + " des offres"],
+      ["Salaire publié", cov ? pct(cov.taux_couverture, 1) : "–", cov ? `${nf.format(cov.nb_avec_salaire)} offres sur ${nf.format(cov.nb_offres)}` : ""],
+      ["Technologie n° 1", top ? top.t : "–", top ? `citée par ${pct(top.p)} des offres tech` : ""],
+    ];
+    $("kpis").innerHTML = k.map(([a, b, c]) => `<div class="kpi"><div class="k">${esc(a)}</div><div class="v">${esc(b)}</div><div class="d">${esc(c)}</div></div>`).join("");
+  }
+
+  function renderApercu(d) {
+    const fam = d.familles.filter((f) => f.f !== "AUTRE");
+    const autre = d.familles.filter((f) => f.f === "AUTRE").reduce((a, f) => a + f.n, 0);
+    $("fam-sub").textContent = `Offres uniques ; ${nf.format(autre)} offres non tech exclues`;
+    hbars("ch-familles", fam.map((f) => ({ label: FAM[f.f], v: f.n, text: nf.format(f.n),
+      tip: `<b>${FAM[f.f]}</b><br>${nf.format(f.n)} offres · ${pct(f.n / d.tech, 1)} des offres tech` })),
+      { label: "Offres tech par famille", tick: (t) => nf.format(t) });
+    table("tb-familles", ["Famille", "Offres"], d.familles.map((f) => [FAM[f.f], nf.format(f.n)]), [false, true]);
+
+    const lab = (v) => v.e && v.e !== "NA" ? `${v.v} (${v.e})` : v.v;
+    hbars("ch-villes", d.villes.map((v) => ({ label: lab(v), v: v.n, text: nf.format(v.n), tip: `<b>${esc(lab(v))}</b><br>${nf.format(v.n)} offres tech` })),
+      { label: "Villes par offres tech", tick: (t) => nf.format(t), labelW: 160 });
+    $("villes-note").textContent = d.sans_ville ? `${nf.format(d.sans_ville)} offres tech sans ville précise (télétravail, pays seul…).` : "";
+    table("tb-villes", ["Ville", "Offres tech"], d.villes.map((v) => [lab(v), nf.format(v.n)]), [false, true]);
+    $("mois-note").textContent = source === "kaggle_linkedin"
+      ? "Le dataset LinkedIn est un instantané : 98,5 % de ses offres datent d'avril 2024. Une courbe mois par mois montrerait la date de constitution du jeu de données, pas une tendance du marché."
+      : "Les dates disponibles sont celles d'offres encore ouvertes, publiées entre 2022 et 2026. La courbe aura un sens quand la collecte quotidienne aura accumulé plusieurs mois.";
+  }
+
+  function renderTechs(d) {
+    hbars("ch-techs", d.techs.map((t) => ({ label: t.t, v: t.p * 100, text: pct(t.p),
+      tip: `<b>${esc(t.t)}</b><br>${nf.format(t.n)} offres tech · ${pct(t.p, 1)}` })),
+      { label: "Technologies les plus demandées", tick: (t) => nf.format(t) + " %", labelW: 120 });
+    table("tb-techs", ["Technologie", "Offres tech", "Part"], d.techs.map((t) => [t.t, nf.format(t.n), pct(t.p, 1)]), [false, true, true]);
+
+    const box = $("ch-cooc"); box.innerHTML = "";
+    const names = d.cooc.techs, sup = d.cooc.supports, n = names.length;
+    if (n < 2) { box.innerHTML = '<div class="empty">Pas assez de technologies pour cette source.</div>'; return; }
+    const c = {}; d.cooc.paires.forEach((p) => { c[p.a + "|" + p.b] = p.c; c[p.b + "|" + p.a] = p.c; });
+    const L = 96, T = 82, cell = Math.min(52, Math.floor((widthOf(box) - L) / n)), W = L + cell * n, H = T + cell * n + 4;
+    const s = svg(W, H, "Technologies citées ensemble");
+    const steps = 7;
+    names.forEach((b, j) => el("text", { x: L + j * cell + cell / 2, y: T - 8, transform: `rotate(-45 ${L + j * cell + cell / 2} ${T - 8})`, "text-anchor": "start" }, s, b));
+    names.forEach((a, i) => {
+      el("text", { x: L - 6, y: T + i * cell + cell / 2 + 4, "text-anchor": "end" }, s, a);
+      names.forEach((b, j) => {
+        const x = L + j * cell, y = T + i * cell;
+        if (i === j) { el("rect", { x: x + 1, y: y + 1, width: cell - 2, height: cell - 2, rx: 3, fill: "var(--chip)" }, s); return; }
+        const k = c[a + "|" + b] || 0, base = sup[a] || 0, p = base ? k / base : 0;
+        const st = Math.min(steps, 1 + Math.floor(p * steps));
+        el("rect", { x: x + 1, y: y + 1, width: cell - 2, height: cell - 2, rx: 3, fill: `var(--s${st})` }, s);
+        el("text", { x: x + cell / 2, y: y + cell / 2 + 4, "text-anchor": "middle", class: "val", style: `fill: var(--t${st}); font-size: 10.5px` }, s, Math.round(p * 100));
+        const hit = el("rect", { x, y, width: cell, height: cell, class: "hit" }, s);
+        bindTip(hit, `<b>${esc(a)} → ${esc(b)}</b><br>${nf.format(k)} offres citent les deux, soit ${pct(p)} des ${nf.format(base)} offres qui citent ${esc(a)}`);
+      });
+    });
+    box.appendChild(s);
+    $("cooc-note").textContent = `Valeurs en % (lecture en ligne). ${source === "ats_maroc" ? "Petits effectifs : quelques offres suffisent à faire varier une case." : "Calculé sur les offres uniques de toutes familles."}`;
+  }
+
+  function renderSalaires(d) {
+    const cov = d.couverture;
+    $("couverture").innerHTML = cov
+      ? `<div class="big">${pct(cov.taux_couverture, 1)}</div><p><b>des offres publient un salaire</b> (${nf.format(cov.nb_avec_salaire)} sur ${nf.format(cov.nb_offres)}). Les salaires ci-dessous ne décrivent que ces offres-là.${cov.nb_avec_salaire === 0 ? " Aucune offre de cette source n'affiche de salaire : rien n'est estimé ni affiché à leur place." : ""}</p>`
+      : "";
+    const niveaux = ORDRE_NIV.filter((n) => d.salaires.some((s) => s.niv === n));
+    if (!niveaux.includes(niveau)) niveau = niveaux.includes("CONFIRME") ? "CONFIRME" : niveaux[0];
+    const chips = $("chips-niveau"); chips.innerHTML = "";
+    niveaux.forEach((nv) => {
+      const b = document.createElement("button"); b.type = "button"; b.id = "niv-" + nv.replace(/\W/g, "");
+      b.textContent = NIV[nv]; b.setAttribute("aria-pressed", String(nv === niveau));
+      b.addEventListener("click", () => { niveau = nv; renderSalaires(d); }); chips.appendChild(b);
+    });
+    const box = $("ch-salaires"); box.innerHTML = "";
+    const rows = d.salaires.filter((s) => s.niv === niveau).sort((a, b) => (b.med || 0) - (a.med || 0));
+    const fiables = rows.filter((r) => r.med != null);
+    if (!fiables.length) {
+      box.innerHTML = `<div class="empty">${cov && cov.nb_avec_salaire === 0 ? "Aucun salaire publié pour cette source." : `Aucune famille n'atteint ${DONNEES.min_salaires} salaires à ce niveau.`}</div>`;
+    } else {
+      const W = Math.min(widthOf(box), 900), L = 130, R = 140, row = 34, top = 6, bottom = 24, H = top + rows.length * row + bottom;
+      const lo = Math.min(...fiables.map((r) => r.p25)) * 0.9, hi = Math.max(...fiables.map((r) => r.p75)) * 1.05;
+      const x = (v) => L + ((v - lo) / (hi - lo)) * (W - L - R);
+      const s = svg(W, H, "Salaire annuel par famille");
+      niceTicks(hi, 5).filter((t) => t >= lo).forEach((t) => {
+        el("line", { x1: x(t), x2: x(t), y1: top, y2: H - bottom + 4, class: "grid-line" }, s);
+        el("text", { x: x(t), y: H - 6, "text-anchor": "middle", class: "axis" }, s, kusd(t));
+      });
+      rows.forEach((r, i) => {
+        const y = top + i * row + row / 2;
+        el("text", { x: L - 10, y: y + 4, "text-anchor": "end" }, s, FAM[r.f]);
+        if (r.med == null) {
+          el("text", { x: L, y: y + 4, class: "axis" }, s, `${r.n_usd} salaire${r.n_usd > 1 ? "s" : ""} : médiane masquée`);
+          return;
+        }
+        el("line", { x1: x(r.p25), x2: x(r.p75), y1: y, y2: y, stroke: "var(--accent)", "stroke-width": 3, "stroke-linecap": "round", opacity: 0.45 }, s);
+        el("circle", { cx: x(r.med), cy: y, r: 6, fill: "var(--accent)", stroke: "var(--surface)", "stroke-width": 2 }, s);
+        el("text", { x: x(r.p75) + 10, y: y + 4, class: "val" }, s, `${kusd(r.med)} · n = ${nf.format(r.n_usd)}`);
+        const hit = el("rect", { x: 0, y: y - row / 2, width: W, height: row, class: "hit" }, s);
+        bindTip(hit, `<b>${FAM[r.f]}, ${NIV[r.niv]}</b><br>Médiane ${kusd(r.med)}<br>25<sup>e</sup>-75<sup>e</sup> centile : ${kusd(r.p25)} – ${kusd(r.p75)}<br>${nf.format(r.n_usd)} salaires sur ${nf.format(r.nb_offres)} offres (${pct(r.nb_avec_salaire / r.nb_offres)})`);
+      });
+      box.appendChild(s);
+    }
+    $("sal-note").textContent = `n = nombre de salaires utilisés. Médiane masquée sous ${DONNEES.min_salaires} salaires.`;
+    table("tb-salaires", ["Famille", "Niveau", "Offres", "Salaires", "P25", "Médiane", "P75"],
+      d.salaires.slice().sort((a, b) => a.f.localeCompare(b.f) || ORDRE_NIV.indexOf(a.niv) - ORDRE_NIV.indexOf(b.niv))
+        .map((r) => [FAM[r.f], NIV[r.niv], nf.format(r.nb_offres), nf.format(r.nb_avec_salaire), r.p25 ? kusd(r.p25) : "–", r.med ? kusd(r.med) : "–", r.p75 ? kusd(r.p75) : "–"]),
+      [false, false, true, true, true, true, true]);
+  }
+
+  function renderExperience(d) {
+    const box = $("ch-exp"); box.innerHTML = "";
+    const tranches = [...new Map(d.experience.map((e) => [e.o, e.t])).entries()].sort((a, b) => a[0] - b[0]);
+    const color = (o) => (o === 0 ? "var(--na)" : `var(--o${o})`);
+    const fams = [...new Set(d.experience.map((e) => e.f))];
+    if (!fams.length) { box.innerHTML = '<div class="empty">Aucune donnée pour cette source.</div>'; return; }
+    const W = widthOf(box), L = 120, row = 30, top = 4, H = top + fams.length * row + 4;
+    const s = svg(W, H, "Expérience demandée par famille");
+    fams.forEach((f, i) => {
+      const y = top + i * row; let x = L;
+      el("text", { x: L - 8, y: y + row / 2 + 4, "text-anchor": "end" }, s, FAM[f]);
+      d.experience.filter((e) => e.f === f).sort((a, b) => (a.o || 99) - (b.o || 99)).forEach((e) => {
+        const w = e.p * (W - L);
+        if (w <= 0) return;
+        el("rect", { x, y: y + 5, width: Math.max(0, w - 2), height: row - 10, fill: color(e.o) }, s);
+        if (w > 34) el("text", { x: x + w / 2 - 1, y: y + row / 2 + 4, "text-anchor": "middle", class: "val", style: `fill: var(--ot${e.o}); font-size: 10.5px` }, s, Math.round(e.p * 100) + "%");
+        const hit = el("rect", { x, y, width: w, height: row, class: "hit" }, s);
+        bindTip(hit, `<b>${FAM[f]} · ${esc(e.t)}</b><br>${pct(e.p, 1)} des offres (${nf.format(e.n)})`);
+        x += w;
+      });
+    });
+    box.appendChild(s);
+    $("lg-exp").innerHTML = [...tranches.filter((t) => t[0] !== 0), tranches.find((t) => t[0] === 0)].filter(Boolean)
+      .map(([o, t]) => `<span><i style="background:${color(o)}"></i>${esc(t)}</span>`).join("");
+    table("tb-exp", ["Famille", "Tranche", "Offres", "Part"], d.experience.map((e) => [FAM[e.f], e.t, nf.format(e.n), pct(e.p, 1)]), [false, false, true, true]);
+  }
+
+  function renderPrime(d) {
+    const box = $("ch-prime"); box.innerHTML = "";
+    if (!d.prime.length) {
+      box.innerHTML = '<div class="empty">Le modèle de salaire est entraîné sur le dataset US uniquement : sans salaire publié, il n\'existe pas pour cette source.</div>';
+      $("tb-prime").innerHTML = ""; return;
+    }
+    const sel = [...d.prime.slice(0, 8), ...d.prime.slice(-6)].filter((v, i, a) => a.findIndex((w) => w.t === v.t) === i);
+    const W = widthOf(box), L = 110, row = 24, top = 6, bottom = 24, H = top + sel.length * row + bottom;
+    const lim = Math.max(...sel.map((p) => Math.abs(p.e))) * 1.3;
+    const x = (v) => L + ((v + lim) / (2 * lim)) * (W - L - 10);
+    const s = svg(W, H, "Technologies et salaire estimé");
+    [-10, -5, 0, 5, 10].filter((t) => Math.abs(t) <= lim).forEach((t) => {
+      el("line", { x1: x(t), x2: x(t), y1: top, y2: H - bottom + 4, class: "grid-line", style: t === 0 ? "stroke: var(--ink-3)" : "" }, s);
+      el("text", { x: x(t), y: H - 6, "text-anchor": "middle", class: "axis" }, s, (t > 0 ? "+" : "") + t + " %");
+    });
+    sel.forEach((p, i) => {
+      const y = top + i * row, pos = p.e >= 0, x0 = x(0), x1 = x(p.e);
+      el("text", { x: L - 8, y: y + row / 2 + 4, "text-anchor": "end" }, s, p.t);
+      el("rect", { x: Math.min(x0, x1), y: y + 5, width: Math.max(1, Math.abs(x1 - x0)), height: row - 10, rx: 3, fill: pos ? "var(--accent)" : "var(--neg)" }, s);
+      el("text", { x: pos ? x1 + 5 : x1 - 5, y: y + row / 2 + 4, "text-anchor": pos ? "start" : "end", class: "val" }, s, (pos ? "+" : "−") + nf1.format(Math.abs(p.e)) + " %");
+      const hit = el("rect", { x: 0, y, width: W, height: row, class: "hit" }, s);
+      bindTip(hit, `<b>${esc(p.t)}</b><br>${pos ? "+" : "−"}${nf1.format(Math.abs(p.e))} % de salaire estimé<br>${nf.format(p.n)} offres d'entraînement`);
+    });
+    box.appendChild(s);
+    table("tb-prime", ["Technologie", "Écart estimé", "Offres"], d.prime.map((p) => [p.t, (p.e >= 0 ? "+" : "−") + nf1.format(Math.abs(p.e)) + " %", nf.format(p.n)]), [false, true, true]);
+  }
+
+  // Onglets : clavier (flèches), lien direct #apercu / #technologies / #salaires
+  const tabs = [...document.querySelectorAll('[role="tab"]')];
+  function select(id, focus) {
+    tabs.forEach((t) => {
+      const on = t.getAttribute("aria-controls") === id;
+      t.setAttribute("aria-selected", String(on)); t.tabIndex = on ? 0 : -1;
+      $(t.getAttribute("aria-controls")).hidden = !on;
+      if (on && focus) t.focus();
+    });
+    if (typeof render === "function" && DONNEES) render();
+  }
+  tabs.forEach((t, i) => {
+    t.addEventListener("click", () => { select(t.getAttribute("aria-controls")); history.replaceState(null, "", "#" + t.getAttribute("aria-controls")); });
+    t.addEventListener("keydown", (e) => {
+      const k = { ArrowRight: 1, ArrowLeft: -1 }[e.key]; if (!k) return;
+      select(tabs[(i + k + tabs.length) % tabs.length].getAttribute("aria-controls"), true);
+    });
+  });
+  const h = location.hash.slice(1); select(["apercu", "technologies", "salaires"].includes(h) ? h : "apercu");
+
+  function render() {
+    const d = DONNEES.sources[source];
+    renderSourceSwitch(); renderKpis(d); renderApercu(d); renderTechs(d); renderSalaires(d); renderExperience(d); renderPrime(d);
+    $("min-sal").textContent = DONNEES.min_salaires;
+    $("pied").textContent = `Agrégats Gold du ${new Date(DONNEES.genere_le + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}. Source affichée : ${d.libelle}. Aucune annonce n'est publiée ici, seulement des comptages et des statistiques.`;
+  }
+  render();
+  let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 150); });
+})();
+</script>
+</body>
+</html>

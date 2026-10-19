@@ -142,9 +142,14 @@ def score(y_true, y_pred) -> dict:
     }
 
 
+def with_pred(y_true, y_pred) -> dict:
+    """Score + prédictions (pour rescorer des sous-ensembles sans réentraîner)."""
+    return {**score(y_true, y_pred), "pred": list(y_pred)}
+
+
 def evaluate_rules(df: pd.DataFrame) -> dict:
     """Les règles actuelles, appliquées au titre brut comme dans Silver."""
-    return score(df["famille_reelle"], df["titre_brut"].map(classify_family))
+    return with_pred(df["famille_reelle"], df["titre_brut"].map(classify_family))
 
 
 def _folds(y: pd.Series) -> int:
@@ -165,7 +170,7 @@ def evaluate_tfidf(df: pd.DataFrame, seed: int = SEED) -> dict:
         n_splits=_folds(df["famille_reelle"]), shuffle=True, random_state=seed
     )
     pred = cross_val_predict(pipe, df["texte"], df["famille_reelle"], cv=cv)
-    return score(df["famille_reelle"], pred)
+    return with_pred(df["famille_reelle"], pred)
 
 
 def evaluate_embeddings(df: pd.DataFrame, seed: int = SEED) -> dict | None:
@@ -185,10 +190,20 @@ def evaluate_embeddings(df: pd.DataFrame, seed: int = SEED) -> dict | None:
         LogisticRegression(max_iter=2000, class_weight="balanced"),
         np.asarray(X), df["famille_reelle"], cv=cv,
     )  # fmt: skip
-    return score(df["famille_reelle"], pred)
+    return with_pred(df["famille_reelle"], pred)
 
 
-def evaluate_command() -> int:
+def subsets(df: pd.DataFrame) -> dict[str, pd.Series]:
+    """Sous-ensembles rescorés : sans les cas que l'annotateur a jugés ambigus
+    (colonne `incertain` = oui), et les seules offres marocaines."""
+    masks = {}
+    if "incertain" in df:
+        masks["hors_ambigus"] = df["incertain"].str.strip().str.lower() != "oui"
+    masks["maroc"] = df["source"] == "ats_maroc"
+    return {k: m for k, m in masks.items() if m.sum() >= 10}
+
+
+def evaluate_command(annotateur: str = "non précisé") -> int:
     import mlflow
 
     if not PATH.exists():
@@ -205,35 +220,50 @@ def evaluate_command() -> int:
         "tfidf_logreg": evaluate_tfidf,
         "embeddings_logreg": evaluate_embeddings,
     }
-    print(f"[ml] {len(df)} offres annotées ; répartition : "
+    masks = subsets(df)
+    print(f"[ml] {len(df)} offres annotées (annotateur : {annotateur}) ; répartition : "
           f"{df['famille_reelle'].value_counts().to_dict()}")  # fmt: skip
+    print("  " + " ; ".join(f"{k} : {int(m.sum())} offres" for k, m in masks.items()))
     for name, fn in candidates.items():
         res = fn(df)
         if res is None:
             print(f"  {name:<20} non évalué : sentence-transformers non installé")
             continue
+        pred = pd.Series(res["pred"], index=df.index)
+        metrics = {"f1_macro": res["f1_macro"], "exactitude": res["exactitude"]}
+        for sub, m in masks.items():
+            s = score(df.loc[m, "famille_reelle"], pred[m])
+            metrics[f"f1_macro_{sub}"] = s["f1_macro"]
+            metrics[f"exactitude_{sub}"] = s["exactitude"]
         with mlflow.start_run(run_name=name):
             validation = "règles : directe ; modèles : croisée stratifiée"
-            mlflow.log_params(
-                {"modele": name, "offres_annotees": len(df), "validation": validation}
-            )
-            mlflow.log_metrics(
-                {"f1_macro": res["f1_macro"], "exactitude": res["exactitude"]}
-            )
+            mlflow.log_params({"modele": name, "offres_annotees": len(df),
+                               "validation": validation,
+                               "annotateur": annotateur})  # fmt: skip
+            mlflow.log_metrics(metrics)
             with tempfile.TemporaryDirectory() as tmp:
                 rapport = Path(tmp) / "rapport.txt"
                 rapport.write_text(res["rapport"], encoding="utf-8")
                 mlflow.log_artifact(str(rapport))
+        detail = " | ".join(
+            f"{k.removeprefix('f1_macro_')} {v:.3f}"
+            for k, v in metrics.items() if k.startswith("f1_macro_")
+        )  # fmt: skip
         f1, acc = res["f1_macro"], res["exactitude"]
-        print(f"  {name:<20} F1 macro {f1:.3f} | exactitude {acc:.3f}")
+        print(f"  {name:<18} F1 macro {f1:.3f} | exactitude {acc:.3f} | {detail}")
+        print("\n".join("      " + ln for ln in res["rapport"].splitlines()))
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Classification des familles de poste")
     p.add_argument("commande", choices=["echantillon", "evaluer"])
+    p.add_argument("--annotateur", default="non précisé",
+                   help="qui a annoté (tracé dans MLflow)")  # fmt: skip
     args = p.parse_args(argv)
-    return sample_command() if args.commande == "echantillon" else evaluate_command()
+    if args.commande == "echantillon":
+        return sample_command()
+    return evaluate_command(args.annotateur)
 
 
 if __name__ == "__main__":

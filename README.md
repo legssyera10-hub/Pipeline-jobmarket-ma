@@ -138,7 +138,7 @@ typée et enrichie.
 | Durée (dataset complet) | 350 s au jour 5, 908-920 s au jour 6 : due très probablement à la pagination de l'hôte Windows à court de RAM (journal, jour 8) ; `ats_maroc` : 43 s |
 | Offres tech avec au moins une technologie détectée | 90,2 % |
 | Salaire annualisé concordant avec la source | 100 % (29 % des offres ont un salaire) |
-| Précision de l'extraction des technologies | *à mesurer : 100 offres à annoter* |
+| Extraction des technologies (100 offres annotées) | précision 97,1 %, rappel 92,9 %, F1 95,0 % |
 
 ## Qualité des données
 
@@ -286,15 +286,45 @@ docker compose run --rm app python -m src.ml.classification echantillon  # 402 o
 docker compose run --rm --no-deps app python -m src.ml.classification evaluer
 ```
 
-*Résultats : en attente de l'annotation (au moins 150 offres).*
+Résultats sur 402 offres annotées (37 marocaines, 365 du dataset US) :
+
+| Méthode | F1 macro | Hors cas ambigus (344) | Maroc (37) |
+|---|---|---|---|
+| **Règles actuelles sur le titre** | **0,843** | **0,904** | **0,891** |
+| TF-IDF + régression logistique (validation croisée) | 0,770 | 0,817 | 0,370 |
+
+Les règles restent en place : avec 402 exemples, le modèle fait moins bien, et
+s'effondre sur les offres marocaines (en français, peu nombreuses dans
+l'entraînement). Point faible des règles : la classe « non tech » (rappel 0,58) ;
+des emplois d'annotation de données ou de saisie titrés « Data Analyst » passent
+pour de la BI. Correction à faire sur un jeu de validation séparé, pas sur celui
+qui sert à mesurer.
+
+**Limite :** les étiquettes ont été posées par un modèle de langage (Claude),
+pas par un humain, en suivant [docs/guide_annotation.md](docs/guide_annotation.md),
+sans voir la prédiction des règles ; 58 offres ambiguës sont marquées. Comme les
+règles, cet annotateur lit d'abord le titre : l'accord peut être un peu
+surestimé. Une relecture humaine d'un échantillon est recommandée.
 
 ## Restitution
+
+### Tableau de bord web
+
+[docs/dashboard/index.html](docs/dashboard/index.html) : une page autonome (sans
+serveur) générée depuis les agrégats Gold par
+`python -m scripts.tableau_de_bord`. Trois onglets (vue d'ensemble, technologies,
+salaires et expérience), une source à la fois, info-bulles, données de chaque
+graphique consultables en tableau, thèmes clair et sombre. Mêmes règles que le
+guide Power BI : couverture affichée avec tout salaire, médiane masquée sous 30
+salaires.
+
+### Power BI et figures
 
 Le tableau de bord Power BI lit les tables Gold et les vues `bi.*` avec un compte
 PostgreSQL **en lecture seule** : connexion, mesures et contenu des 3 pages dans
 [docs/powerbi.md](docs/powerbi.md). Les figures ci-dessous en sont l'aperçu,
 générées depuis les mêmes agrégats par `python -m scripts.figures_readme`
-(dataset LinkedIn US ; la source marocaine, 37 offres, est trop petite pour ces
+(dataset LinkedIn US ; la source marocaine, 38 offres, est trop petite pour ces
 graphiques).
 
 ![Offres tech par famille de poste](docs/img/offres_par_famille.png)
@@ -367,13 +397,13 @@ src/quality/      règles de quarantaine, suites Great Expectations
 src/ml/           modèle de salaire (LightGBM, SHAP), classification des familles
 src/utils/        config (.env), SparkSession (s3a + JDBC), client S3, PostgreSQL
 sql/              schéma PostgreSQL (gold, gold_staging, ops, vues bi), idempotent
-scripts/          scripts opérationnels (check_*, figures, rôle Power BI, annotation)
+scripts/          scripts opérationnels (check_*, figures, tableau de bord web, rôle Power BI, annotation)
 dags/             DAGs Airflow (+ commun.py : tâche = conteneur, alertes)
 reference/        référentiels (technologies, états US, villes marocaines, employeurs)
 tests/            tests unitaires (+ fixtures), vérification des DAGs (airflow/)
 .github/          CI GitHub Actions
 docker/           Dockerfiles (app, Airflow, MLflow), auto-réparation, init SQL
-docs/             décisions, journal, guides (annotation, Power BI), figures (img/)
+docs/             décisions, journal, guides (annotation, Power BI), figures (img/), tableau de bord (dashboard/)
 ```
 
 ## Décisions et compromis
