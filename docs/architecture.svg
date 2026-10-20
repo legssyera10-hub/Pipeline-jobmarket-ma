@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1320 600" width="1320" height="600" role="img" aria-label="Architecture de JobMarket MA : les offres collectées par API ou issues du dataset Kaggle passent de raw à Bronze, Silver puis Gold ; les lignes invalides partent en quarantaine ; un modèle de salaire lit Silver et écrit dans Gold ; Airflow orchestre et Telegram alerte.">
+  <defs>
+    <marker id="fl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3a4250"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1320" height="600" fill="#ffffff"/>
+
+  <!-- Titre -->
+  <text x="20" y="36" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="21" font-weight="700" fill="#14171c">JobMarket MA — architecture</text>
+  <text x="20" y="60" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13.5" fill="#4a5263">Médaillon raw → Bronze → Silver → Gold, orchestré par Airflow, tout en local sous Docker Compose</text>
+
+  <!-- Légende -->
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12.5" fill="#4a5263">
+    <rect x="890" y="26" width="14" height="14" rx="3" fill="#e6f0fc" stroke="#2a78d6" stroke-width="1.5"/>
+    <text x="910" y="38">MinIO (stockage S3)</text>
+    <rect x="1040" y="26" width="14" height="14" rx="3" fill="#e4f5ec" stroke="#14946a" stroke-width="1.5"/>
+    <text x="1060" y="38">PostgreSQL</text>
+    <rect x="1150" y="26" width="14" height="14" rx="3" fill="#ffffff" stroke="#8a919c" stroke-width="1.5"/>
+    <text x="1170" y="38">traitement</text>
+  </g>
+
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif" text-anchor="middle">
+    <!-- Sources -->
+    <rect x="20" y="100" width="180" height="70" rx="8" fill="#f4f6f9" stroke="#8a919c" stroke-width="1.5"/>
+    <text x="110" y="130" font-size="14" font-weight="600" fill="#14171c">API Greenhouse / Lever</text>
+    <text x="110" y="151" font-size="12" fill="#4a5263">5 employeurs au Maroc</text>
+
+    <rect x="20" y="250" width="180" height="70" rx="8" fill="#f4f6f9" stroke="#8a919c" stroke-width="1.5"/>
+    <text x="110" y="280" font-size="14" font-weight="600" fill="#14171c">Dataset LinkedIn (US)</text>
+    <text x="110" y="301" font-size="12" fill="#4a5263">123 849 offres, CSV</text>
+
+    <!-- Collecte -->
+    <rect x="240" y="100" width="140" height="70" rx="8" fill="#ffffff" stroke="#8a919c" stroke-width="1.5"/>
+    <text x="310" y="130" font-size="14" font-weight="600" fill="#14171c">Collecte</text>
+    <text x="310" y="151" font-size="12" fill="#4a5263">robots.txt, 2 s / appel</text>
+
+    <!-- raw -->
+    <rect x="420" y="100" width="130" height="70" rx="8" fill="#e6f0fc" stroke="#2a78d6" stroke-width="1.5"/>
+    <text x="485" y="130" font-size="14" font-weight="600" fill="#14171c">raw/</text>
+    <text x="485" y="151" font-size="12" fill="#4a5263">JSON brut, immuable</text>
+
+    <!-- Bronze -->
+    <rect x="600" y="175" width="120" height="70" rx="8" fill="#e6f0fc" stroke="#2a78d6" stroke-width="1.5"/>
+    <text x="660" y="205" font-size="14" font-weight="600" fill="#14171c">Bronze</text>
+    <text x="660" y="226" font-size="12" fill="#4a5263">Parquet immuable</text>
+
+    <!-- Silver -->
+    <rect x="770" y="175" width="160" height="70" rx="8" fill="#e6f0fc" stroke="#2a78d6" stroke-width="1.5"/>
+    <text x="850" y="205" font-size="14" font-weight="600" fill="#14171c">Silver</text>
+    <text x="850" y="226" font-size="12" fill="#4a5263">PySpark, puis audit</text>
+
+    <!-- Gold -->
+    <rect x="980" y="175" width="140" height="70" rx="8" fill="#e4f5ec" stroke="#14946a" stroke-width="1.5"/>
+    <text x="1050" y="205" font-size="14" font-weight="600" fill="#14171c">Gold</text>
+    <text x="1050" y="226" font-size="12" fill="#4a5263">bascule en 1 transaction</text>
+
+    <!-- Quarantaine -->
+    <rect x="770" y="310" width="130" height="56" rx="8" fill="#e6f0fc" stroke="#2a78d6" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <text x="835" y="333" font-size="13" font-weight="600" fill="#14171c">silver/rejets</text>
+    <text x="835" y="352" font-size="12" fill="#4a5263">quarantaine + motifs</text>
+
+    <!-- Modèle ML -->
+    <rect x="980" y="310" width="140" height="62" rx="8" fill="#ffffff" stroke="#8a919c" stroke-width="1.5"/>
+    <text x="1050" y="336" font-size="13.5" font-weight="600" fill="#14171c">Modèle de salaire</text>
+    <text x="1050" y="356" font-size="12" fill="#4a5263">LightGBM, SHAP</text>
+
+    <!-- MLflow -->
+    <rect x="980" y="420" width="140" height="56" rx="8" fill="#ffffff" stroke="#8a919c" stroke-width="1.5"/>
+    <text x="1050" y="444" font-size="13.5" font-weight="600" fill="#14171c">MLflow</text>
+    <text x="1050" y="463" font-size="12" fill="#4a5263">runs, registre</text>
+
+    <!-- Restitution -->
+    <rect x="1170" y="110" width="130" height="62" rx="8" fill="#ffffff" stroke="#8a919c" stroke-width="1.5"/>
+    <text x="1235" y="136" font-size="13.5" font-weight="600" fill="#14171c">Tableau de bord</text>
+    <text x="1235" y="156" font-size="12" fill="#4a5263">page web autonome</text>
+
+    <rect x="1170" y="248" width="130" height="62" rx="8" fill="#ffffff" stroke="#8a919c" stroke-width="1.5"/>
+    <text x="1235" y="274" font-size="13.5" font-weight="600" fill="#14171c">Power BI</text>
+    <text x="1235" y="294" font-size="12" fill="#4a5263">compte lecture seule</text>
+
+    <!-- Orchestration -->
+    <rect x="240" y="520" width="880" height="56" rx="8" fill="#f4f6f9" stroke="#8a919c" stroke-width="1.5"/>
+    <text x="680" y="544" font-size="14" font-weight="600" fill="#14171c">Airflow 3 — collecte, Bronze, Silver, Gold à 14:00 et 18:00 (heure du Maroc)</text>
+    <text x="680" y="564" font-size="12" fill="#4a5263">une tâche = un conteneur · réessais des seules pannes passagères · un job Spark à la fois · auto-réparation</text>
+
+    <rect x="1170" y="520" width="130" height="56" rx="8" fill="#ffffff" stroke="#8a919c" stroke-width="1.5"/>
+    <text x="1235" y="544" font-size="13.5" font-weight="600" fill="#14171c">Telegram</text>
+    <text x="1235" y="563" font-size="12" fill="#4a5263">échec, rétablissement</text>
+  </g>
+
+  <!-- Flèches -->
+  <g fill="none" stroke="#3a4250" stroke-width="1.6" marker-end="url(#fl)">
+    <line x1="200" y1="135" x2="238" y2="135"/>
+    <line x1="380" y1="135" x2="418" y2="135"/>
+    <polyline points="550,135 575,135 575,198 598,198"/>
+    <polyline points="200,285 575,285 575,224 598,224"/>
+    <line x1="720" y1="210" x2="768" y2="210"/>
+    <line x1="930" y1="210" x2="978" y2="210"/>
+    <line x1="805" y1="245" x2="805" y2="308"/>
+    <polyline points="905,245 905,340 978,340"/>
+    <line x1="1080" y1="310" x2="1080" y2="247"/>
+    <line x1="1050" y1="372" x2="1050" y2="418"/>
+    <polyline points="1120,198 1145,198 1145,141 1168,141"/>
+    <polyline points="1120,222 1145,222 1145,279 1168,279"/>
+    <line x1="1120" y1="548" x2="1168" y2="548"/>
+  </g>
+
+  <!-- Libellés des flèches -->
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11.5" font-style="italic" fill="#5a6272">
+    <text x="219" y="126" text-anchor="middle">JSON</text>
+    <text x="399" y="126" text-anchor="middle">écrit</text>
+    <text x="581" y="168">parsing</text>
+    <text x="388" y="277" text-anchor="middle">ingestion du CSV</text>
+    <text x="744" y="201" text-anchor="middle">nettoie</text>
+    <text x="954" y="201" text-anchor="middle">agrège</text>
+    <text x="799" y="282" text-anchor="end">lignes invalides</text>
+    <text x="912" y="300">offres US</text>
+    <text x="1072" y="284" text-anchor="end">effet par techno</text>
+    <text x="1058" y="400">suivi</text>
+    <text x="1150" y="232">vues bi.*</text>
+    <text x="1144" y="540" text-anchor="middle">alertes</text>
+  </g>
+</svg>
