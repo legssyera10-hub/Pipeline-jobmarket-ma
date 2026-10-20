@@ -825,3 +825,42 @@ certaines cases en thème sombre. Aperçu privé publié.
 3. Décision sur l'e-mail des commits (D59) avant de rendre le dépôt public.
 4. Dépôt public, GitHub Pages pour `docs/dashboard/`, captures.
 5. Côté PC : resynchroniser l'heure de Windows.
+
+## Jour 10 — 2026-10-20 — Publication
+
+### État de départ
+Pile saine ; tous les runs planifiés des 30 dernières heures réussis (celui de
+14:00 lancé au démarrage du PC, à 13:36 UTC) ; aucun arrêt de PostgreSQL, aucune
+auto-réparation. Horloge du PC toujours en retard d'une heure.
+
+### README pour une lecture en 90 secondes
+Structure du plan : présentation et badges, schéma, chiffres mesurés, ce que
+montrent les données, démarrage rapide, 8 décisions au format « décision,
+alternative, raison, coût », incidents (provoqués et réels), limites connues.
+Le détail technique (342 lignes) est passé tel quel dans `docs/fonctionnement.md`,
+liens relatifs corrigés et vérifiés. Deux corrections en relisant : la durée de
+Silver (350 s n'était que le meilleur cas : 350 à 920 s selon la charge) et le
+démarrage rapide (les DAGs sont créés en pause : `unpause` ajouté, sinon le
+déclenchement ne faisait rien).
+
+### Schéma d'architecture
+SVG dessiné à la main (fond blanc explicite : sur GitHub, le schéma est une image
+qui ne suit pas le thème du lecteur), exporté en PNG. Une relecture du rendu a
+montré quatre défauts (texte débordant, étiquette sur une flèche voisine,
+étiquette collée aux boîtes, étiquette éloignée de sa flèche), corrigés.
+
+### Audit avant publication
+Fichiers suivis passés en revue : données de test fictives, aucun secret, aucune
+annonce ; seule donnée personnelle : l'e-mail d'auteur des commits, laissé
+visible par choix du propriétaire (D63).
+
+### Publication
+Licence MIT ; dépôt rendu public ; GitHub Pages sur `docs/` (après un premier
+refus : Pages n'est disponible qu'une fois le dépôt public sur ce plan) ;
+description, site et sujets du dépôt renseignés. Vérifié en visiteur anonyme :
+dépôt, site, tableau de bord et badge CI (« passing ») répondent.
+
+### Quelques chiffres sur le marché marocain (petit échantillon : 38 offres, 5 employeurs)
+35 offres sur 38 à Casablanca ; 15 offres tech, dont 6 citent Python ; parmi les
+offres qui précisent l'expérience, 14 sur 24 demandent 2 à 3 ans ; aucune n'affiche
+de salaire.
