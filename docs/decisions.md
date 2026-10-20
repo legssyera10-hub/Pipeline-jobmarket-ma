@@ -709,3 +709,20 @@ Rédigé au moment de la décision, pas après.
   au survol et au clavier ; données de chaque graphique en tableau.
 - **Règles :** une source à la fois ; couverture des salaires affichée en tête ;
   médiane masquée sous 30 salaires ; pas de courbe mensuelle (D58).
+
+## D63 — Publication : dépôt public, GitHub Pages, licence MIT (jour 10)
+
+- **E-mail des commits (suite de D59) :** le propriétaire a choisi de le laisser
+  visible ; l'historique n'est pas réécrit.
+- **Dépôt public** après un audit du contenu : aucun secret (valeurs réelles de
+  `.env` recherchées dans tout l'historique), aucune annonce (données de test
+  fictives, `data/` exclu), aucune donnée personnelle hors le nom du compte et
+  l'e-mail d'auteur.
+- **GitHub Pages** sur `main` / `docs` : le tableau de bord web est en ligne.
+  `docs/.nojekyll` (fichiers servis tels quels) et `docs/index.html` (redirige
+  vers le tableau de bord, sinon la racine du site serait une page 404).
+- **Licence MIT** : un projet de portfolio se lit et se réutilise ; le dataset
+  Kaggle n'est pas redistribué (seuls des agrégats le sont).
+- **README réécrit pour une lecture en 90 secondes** (présentation, schéma,
+  chiffres, décisions, incidents, limites) ; le détail technique est passé dans
+  `docs/fonctionnement.md` sans perte.

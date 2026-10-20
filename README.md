@@ -7,6 +7,7 @@
 ![Great Expectations](https://img.shields.io/badge/Great%20Expectations-1.24-FF6310)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1)
 ![MinIO](https://img.shields.io/badge/MinIO-S3-C72E49)
+[![Tableau de bord](https://img.shields.io/badge/tableau%20de%20bord-en%20ligne-2a78d6)](https://legssyera10-hub.github.io/Pipeline-jobmarket-ma/dashboard/)
 ![MLflow](https://img.shields.io/badge/MLflow-3.17-0194E2)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED)
 
@@ -56,7 +57,7 @@ salaire décrit le marché américain et n'est jamais appliqué au Maroc.
 
 ![Tableau de bord](docs/img/dashboard.png)
 
-Le [tableau de bord web](docs/dashboard/index.html) est une page autonome générée
+Le [tableau de bord web](https://legssyera10-hub.github.io/Pipeline-jobmarket-ma/dashboard/) (en ligne) est une page autonome générée
 depuis Gold (une source à la fois, couverture des salaires toujours affichée). Sur
 le dataset US : SQL (38 %) et Python (37 %) sont les plus demandés dans les offres
 tech ; à profil comparable, les offres qui citent Python ou GCP sont estimées
@@ -89,7 +90,7 @@ http://localhost:5000, console MinIO http://localhost:9001.
 
 ## Décisions et compromis
 
-Les 62 décisions, avec leur contexte, sont dans
+Les 63 décisions, avec leur contexte, sont dans
 [docs/decisions.md](docs/decisions.md). Les plus structurantes :
 
 **API publiques de recrutement plutôt que les grands sites d'emploi marocains.**
@@ -183,10 +184,12 @@ Incidents **réels**, et ce qui a changé :
 | Document | Contenu |
 |---|---|
 | [docs/fonctionnement.md](docs/fonctionnement.md) | chaque couche en détail : commandes, tables, contrôles |
-| [docs/decisions.md](docs/decisions.md) | 62 décisions : raison, alternative, coût |
+| [docs/decisions.md](docs/decisions.md) | 63 décisions : raison, alternative, coût |
 | [docs/journal.md](docs/journal.md) | le projet jour par jour, erreurs comprises |
 | [docs/powerbi.md](docs/powerbi.md) | guide du tableau de bord Power BI |
 | [docs/guide_annotation.md](docs/guide_annotation.md) | grille d'annotation des familles de poste |
 
 Le dépôt ne contient que du code et des agrégats : aucune annonce n'y est publiée
 (le dataset et les fichiers d'annotation restent hors du dépôt).
+
+Licence : [MIT](LICENSE).
